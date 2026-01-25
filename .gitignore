@@ -1,0 +1,17 @@
+# Виртуальные окружения
+.venv/
+rag-env-312/
+rag_env/
+
+# База данных Chroma
+chroma_db/
+
+# Системные файлы Mac
+.DS_Store
+
+# Файлы данных (если они тяжелые)
+documents/chroma_db/
+.venv/
+__pycache__/
+.DS_Store
+.env
