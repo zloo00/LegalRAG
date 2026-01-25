@@ -1,22 +1,40 @@
-# build_vector_db.py — версия для langchain-chroma
+# build_vector_db.py — финальная версия с префиксами и проверкой
 
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from prepare_data import chunks, raw_docs  # твои чанки
+from prepare_data import chunks, raw_docs
 
-embeddings = HuggingFaceEmbeddings(
+class PrefixedEmbeddings:
+    def __init__(self, embeddings):
+        self.embeddings = embeddings
+
+    def embed_documents(self, texts):
+        return self.embeddings.embed_documents(["passage: " + t for t in texts])
+
+    def embed_query(self, text):
+        return self.embeddings.embed_query("query: " + text)
+
+embeddings = PrefixedEmbeddings(HuggingFaceEmbeddings(
     model_name="intfloat/multilingual-e5-large",
-    model_kwargs={"device": "cpu"},
     encode_kwargs={"normalize_embeddings": True}
-)
+))
 
 vector_store = Chroma.from_documents(
     documents=chunks,
     embedding=embeddings,
     persist_directory="./chroma_db",
-    collection_name="kz_laws"
+    collection_name="legal_kz_2026"  # уникальное имя, чтобы не путаться
 )
 
-print(f"Векторная база создана с помощью langchain-chroma!")
-print(f"Документов: {len(raw_docs)}, чанков: {len(chunks)}")
-print(f"Проверка количества в базе: {vector_store._collection.count()}")
+print("База создана!")
+print(f"Документов: {len(raw_docs)}")
+print(f"Чанков: {len(chunks)}")
+print(f"Реальное количество в базе: {vector_store._collection.count()}")
+
+# Тестовый поиск сразу после создания
+test_query = "принципы трудового законодательства"
+test_results = vector_store.similarity_search(test_query, k=3)
+print("\nТестовый поиск после создания:")
+for i, doc in enumerate(test_results, 1):
+    print(f"{i}. {doc.metadata.get('source')}")
+    print(f"   {doc.page_content[:200]}...\n")
