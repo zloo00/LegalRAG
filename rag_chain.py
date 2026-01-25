@@ -6,7 +6,7 @@ from langchain_ollama import OllamaLLM
 from langchain_classic.chains import RetrievalQA
 from langchain_core.prompts import PromptTemplate
 
-# Та же обёртка с префиксами
+# Та же обёртка с префиксами (обязательно!)
 class PrefixedEmbeddings:
     def __init__(self, embeddings):
         self.embeddings = embeddings
@@ -25,7 +25,7 @@ embeddings = PrefixedEmbeddings(HuggingFaceEmbeddings(
 vector_store = Chroma(
     persist_directory="./chroma_db",
     embedding_function=embeddings,
-    collection_name="legal_kz"  # то же имя!
+    collection_name="legal_kz_2026"  # должно быть то же имя, что в build_vector_db.py
 )
 
 print(f"База подключена. Чанков в коллекции: {vector_store._collection.count()}")
@@ -47,7 +47,7 @@ prompt_template = """Ты — точный ассистент по закона�
 
 PROMPT = PromptTemplate.from_template(prompt_template)
 
-retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k": 10})
+retriever = vector_store.as_retriever(search_kwargs={"k": 10})
 
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
