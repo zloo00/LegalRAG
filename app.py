@@ -3,6 +3,21 @@
 import streamlit as st
 from rag_chain import qa_chain  # твоя qa_chain из rag_chain.py
 
+# Сайдбар с информацией и настройками
+with st.sidebar:
+    st.header("Legal RAG")
+    st.markdown("Помощник по законам РК")
+    st.markdown("База: 12 кодексов, 5643 статьи")
+    st.markdown("Модель: Llama 3.1 8B (локально)")
+    st.markdown("Эмбеддинги: multilingual-e5-large")
+
+    st.divider()
+
+    if st.button("Очистить чат"):
+        st.session_state.messages = []
+        st.rerun()
+
+    st.info("Задавайте вопросы на русском или казахском. Ответы строго по текстам из Adilet.")
 # Настройки страницы
 st.set_page_config(
     page_title="Legal RAG — Помощник по законам РК",
@@ -61,7 +76,21 @@ if prompt := st.chat_input("Задайте вопрос по законам РК
         if st.button("Очистить чат", key="clear_chat"):
             st.session_state.messages = []
             st.rerun()
+    # Добавь кнопку скачивания ответа
+    if sources:
+        sources_text = "\n".join([
+            f"{j + 1}. {doc.metadata.get('source', 'неизвестно')} — {doc.page_content[:200].replace('\n', ' ')}..."
+            for j, doc in enumerate(sources)
+        ])
 
+        full_text = f"{response}\n\nИсточники:\n{sources_text}"
+
+        st.download_button(
+            label="Скачать ответ как TXT",
+            data=full_text,
+            file_name="ответ_по_законам.txt",
+            mime="text/plain"
+        )
     # Сохраняем ответ в историю
     st.session_state.messages.append({"role": "assistant", "content": response})
 

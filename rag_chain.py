@@ -47,7 +47,7 @@ prompt_template = """Ты — точный ассистент по закона�
 
 PROMPT = PromptTemplate.from_template(prompt_template)
 
-retriever = vector_store.as_retriever(search_kwargs={"k": 10})
+retriever = vector_store.as_retriever(search_kwargs={"k": 5})
 
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
