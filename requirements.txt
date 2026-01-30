@@ -1,6 +1,7 @@
 # Legal RAG — зависимости (локальный стек: LangChain + Ollama)
 
-# LangChain
+# LangChain (langchain — для EnsembleRetriever)
+langchain>=0.3.0
 langchain-core>=0.3.0
 langchain-community>=0.3.0
 langchain-chroma>=0.1.0

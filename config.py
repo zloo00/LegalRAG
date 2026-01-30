@@ -24,12 +24,13 @@ LLM_TEMPERATURE = 0.0  # минимум креативности, максиму
 # Retriever
 RETRIEVER_TOP_K = 12          # сколько чанков достаём до rerank
 RETRIEVER_TOP_K_AFTER_RERANK = 5  # сколько оставляем после rerank
-BM25_WEIGHT = 0.4             # гибрид: BM25
-VECTOR_WEIGHT = 0.6           # гибрид: семантика
+BM25_WEIGHT = 0.2             # гибрид: BM25
+VECTOR_WEIGHT = 0.8           # гибрид: семантика (увеличено для лучшего понимания смысла)
 
 # Reranker (FlashRank)
 USE_RERANKER = os.environ.get("LEGAL_RAG_USE_RERANKER", "1") == "1"
-FLASHRANK_MODEL = "ms-marco-MiniLM-L-6-v2"  # лёгкий; для качества: "rank-T5-flan"
+# Модель FlashRank: ms-marco-TinyBERT-L-2-v2 (~4MB) или ms-marco-MiniLM-L-12-v2 (~34MB)
+FLASHRANK_MODEL = "ms-marco-TinyBERT-L-2-v2"
 
 # Graph RAG (связи статей: ст. X → ст. Y). Файл графа: article_ref_graph.json
 USE_GRAPH_RAG = os.environ.get("LEGAL_RAG_USE_GRAPH", "0") == "1"

@@ -47,10 +47,17 @@ vector_retriever = vector_store.as_retriever(
 # Гибрид: BM25 + векторный (опционально; чанки из prepare_data)
 base_retriever = vector_retriever
 try:
-    from langchain_community.retrievers import BM25Retriever, EnsembleRetriever
-    import prepare_data  # избегаем циклического импорта через getattr
+    from langchain_community.retrievers import BM25Retriever
+    try:
+        from langchain.retrievers.ensemble import EnsembleRetriever
+    except ImportError:
+        try:
+            from langchain.retrievers import EnsembleRetriever
+        except ImportError:
+            EnsembleRetriever = None
+    import prepare_data
     _chunks = getattr(prepare_data, "chunks", None)
-    if _chunks:
+    if _chunks and EnsembleRetriever is not None:
         bm25_retriever = BM25Retriever.from_documents(
             _chunks,
             k=config.RETRIEVER_TOP_K,
@@ -60,6 +67,40 @@ try:
             weights=[config.BM25_WEIGHT, config.VECTOR_WEIGHT],
         )
         print("Гибридный retriever (BM25 + семантика) включён.")
+    elif _chunks:
+        # Fallback: свой гибрид через RRF (reciprocal rank fusion)
+        from langchain_core.retrievers import BaseRetriever
+        from langchain_core.callbacks import CallbackManagerForRetrieverRun
+        from langchain_core.documents import Document
+        _bm25 = BM25Retriever.from_documents(_chunks, k=config.RETRIEVER_TOP_K)
+
+        class _HybridRetriever(BaseRetriever):
+            retriever_a = vector_retriever
+            retriever_b = _bm25
+            k = config.RETRIEVER_TOP_K
+            c = 60  # RRF constant
+
+            def _get_relevant_documents(self, query: str, *, run_manager=None):
+                docs_a = self.retriever_a.invoke(query)
+                docs_b = self.retriever_b.invoke(query)
+                seen = {}
+                for rank, doc in enumerate(docs_a, 1):
+                    key = (doc.page_content[:200], doc.metadata.get("source", ""))
+                    seen[key] = seen.get(key, 0) + config.VECTOR_WEIGHT / (self.c + rank)
+                for rank, doc in enumerate(docs_b, 1):
+                    key = (doc.page_content[:200], doc.metadata.get("source", ""))
+                    seen[key] = seen.get(key, 0) + config.BM25_WEIGHT / (self.c + rank)
+                sorted_docs = sorted(seen.items(), key=lambda x: -x[1])
+                out = []
+                for (content_prefix, src), _ in sorted_docs[: self.k]:
+                    for d in docs_a + docs_b:
+                        if (d.page_content[:200], d.metadata.get("source", "")) == (content_prefix, src):
+                            out.append(d)
+                            break
+                return out[: self.k]
+
+        base_retriever = _HybridRetriever()
+        print("Гибридный retriever (BM25 + семантика, RRF) включён.")
 except Exception as e:
     print(f"BM25/Ensemble недоступен, используется только векторный поиск: {e}")
 
@@ -72,15 +113,24 @@ if config.USE_RERANKER:
         except ImportError:
             from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
         from langchain_community.document_compressors import FlashrankRerank
-        compressor = FlashrankRerank(
-            model=config.FLASHRANK_MODEL,
-            top_n=config.RETRIEVER_TOP_K_AFTER_RERANK,
-        )
-        retriever = ContextualCompressionRetriever(
-            base_compressor=compressor,
-            base_retriever=base_retriever,
-        )
-        print("Reranker FlashRank включён.")
+        compressor = None
+        for model_name in (config.FLASHRANK_MODEL, "ms-marco-TinyBERT-L-2-v2", None):
+            try:
+                compressor = FlashrankRerank(
+                    model=model_name,
+                    top_n=config.RETRIEVER_TOP_K_AFTER_RERANK,
+                )
+                break
+            except Exception:
+                continue
+        if compressor is not None:
+            retriever = ContextualCompressionRetriever(
+                base_compressor=compressor,
+                base_retriever=base_retriever,
+            )
+            print("Reranker FlashRank включён.")
+        else:
+            print("FlashRank: не удалось загрузить модель, reranker отключён.")
     except Exception as e:
         print(f"FlashRank недоступен, reranker отключён: {e}")
 
