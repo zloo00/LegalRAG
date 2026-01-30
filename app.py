@@ -1,56 +1,78 @@
-# app.py — Streamlit чат для Legal RAG
+# app.py — Streamlit чат для Legal RAG (RU/KZ, дисклеймер, прозрачность AI-закон РК)
 
 import streamlit as st
-from rag_chain import qa_chain  # твоя qa_chain из rag_chain.py
+import config
+from rag_chain import qa_chain
 
-# Сайдбар с информацией и настройками
-with st.sidebar:
-    st.header("Legal RAG")
-    st.markdown("Помощник по законам РК")
-    st.markdown("База: 12 кодексов, 5643 статьи")
-    st.markdown("Модель: Llama 3.1 8B (локально)")
-    st.markdown("Эмбеддинги: multilingual-e5-large")
-
-    st.divider()
-
-    if st.button("Очистить чат"):
-        st.session_state.messages = []
-        st.rerun()
-
-    st.info("Задавайте вопросы на русском или казахском. Ответы строго по текстам из Adilet.")
-# Настройки страницы
+# Настройки страницы (должно быть первым вызовом Streamlit)
 st.set_page_config(
     page_title="Legal RAG — Помощник по законам РК",
     page_icon="⚖️",
-    layout="wide"
+    layout="wide",
 )
 
-# Заголовок и дисклеймер
-st.title("Legal RAG — Помощник по законам Республики Казахстан")
-st.warning("""
-Это **не официальная юридическая консультация** и **не заменяет адвоката**.  
-Информация основана исключительно на текстах законов из официальных источников (Adilet).  
-Всегда проверяйте актуальные редакции на adilet.zan.kz.
-""")
-
-# Инициализация истории чата
+# Язык интерфейса
+if "lang" not in st.session_state:
+    st.session_state.lang = "ru"
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Отображение истории сообщений
+LANG_LABELS = {"ru": "Русский", "kz": "Қазақша"}
+DISCLAIMERS = {"ru": config.DISCLAIMER_RU, "kz": config.DISCLAIMER_KZ}
+PLACEHOLDERS = {
+    "ru": "Задайте вопрос по законам РК (на русском или казахском)",
+    "kz": "ҚР заңдары бойынша сұрақ қойыңыз (орыс немесе қазақ тілінде)",
+}
+SOURCES_LABEL = {"ru": "**Источники (реальные статьи из базы):**", "kz": "**Дереккөздер (базадағы мақалалар):**"}
+DOWNLOAD_LABEL = {"ru": "Скачать ответ как TXT", "kz": "Жауапты TXT ретінде жүктеу"}
+CLEAR_CHAT = {"ru": "Очистить чат", "kz": "Чатты тазалау"}
+INFO_SIDEBAR = {
+    "ru": "Задавайте вопросы на русском или казахском. Ответы строго по текстам из Adilet.",
+    "kz": "Сұрақтарды орыс немесе қазақ тілінде қойыңыз. Жауаптар тек Adilet мәтіні бойынша.",
+}
+
+# Сайдбар: язык и настройки
+with st.sidebar:
+    st.header("Legal RAG")
+    st.markdown("Помощник по законам РК" if st.session_state.lang == "ru" else "ҚР заңдары бойынша көмекші")
+    lang = st.radio(
+        "Язык интерфейса / Интерфейс тілі",
+        options=["ru", "kz"],
+        format_func=lambda x: LANG_LABELS[x],
+        index=0 if st.session_state.lang == "ru" else 1,
+        key="lang_radio",
+    )
+    st.session_state.lang = lang
+    st.divider()
+    st.markdown("База: 12 кодексов, 5643+ чанков")
+    st.markdown(f"Модель: {config.LLM_MODEL} (локально)")
+    st.markdown(f"Эмбеддинги: {config.EMBEDDING_MODEL}")
+    st.divider()
+    if st.button(CLEAR_CHAT[st.session_state.lang], key="sidebar_clear"):
+        st.session_state.messages = []
+        st.rerun()
+    st.info(INFO_SIDEBAR[st.session_state.lang])
+
+# Заголовок и дисклеймер (на выбранном языке)
+st.title("Legal RAG — Помощник по законам Республики Казахстан")
+st.warning(DISCLAIMERS[st.session_state.lang])
+
+# Соответствие закону РК об ИИ (прозрачность)
+st.caption(config.AI_LAW_COMPLIANCE_NOTE)
+
+# История чата
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Поле ввода вопроса
-if prompt := st.chat_input("Задайте вопрос по законам РК (на русском или казахском)"):
-    # Добавляем сообщение пользователя
+# Ввод вопроса
+prompt = st.chat_input(PLACEHOLDERS[st.session_state.lang])
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Показываем "думает..."
-    with st.spinner("Ищу в текстах законов..."):
+    with st.spinner("Ищу в текстах законов..." if st.session_state.lang == "ru" else "Заң мәтінінде іздеймін..."):
         try:
             result = qa_chain.invoke({"query": prompt})
             response = result["result"]
@@ -59,42 +81,31 @@ if prompt := st.chat_input("Задайте вопрос по законам РК
             response = f"Ошибка при обработке вопроса: {str(e)}"
             sources = []
 
-    # Вывод ответа
     with st.chat_message("assistant"):
         st.markdown(response)
-
         if sources:
-            st.markdown("**Источники (реальные статьи из базы):**")
+            st.markdown(SOURCES_LABEL[st.session_state.lang])
             for i, doc in enumerate(sources, 1):
-                source = doc.metadata.get('source', 'неизвестно')
-                # Убираем путь, оставляем только имя файла
-                filename = source.split('/')[-1]
-                preview = doc.page_content[:280].replace('\n', ' ').strip()
-                st.markdown(f"{i}. **{filename}** — {preview}...")
-
-        # Кнопка очистки чата (внизу ответа)
-        if st.button("Очистить чат", key="clear_chat"):
-            st.session_state.messages = []
-            st.rerun()
-    # Добавь кнопку скачивания ответа
+                src = doc.metadata.get("source", "неизвестно")
+                filename = src.split("/")[-1] if "/" in src else src
+                code_ru = doc.metadata.get("code_ru", "")
+                art = doc.metadata.get("article_number", "")
+                preview = doc.page_content[:280].replace("\n", " ").strip()
+                st.markdown(f"{i}. **{filename}**" + (f" — {code_ru} ст.{art}" if art else "") + f" — {preview}...")
     if sources:
         sources_text = "\n".join([
-            f"{j + 1}. {doc.metadata.get('source', 'неизвестно')} — {doc.page_content[:200].replace('\n', ' ')}..."
+            f"{j + 1}. {doc.metadata.get('source', '')} — {doc.metadata.get('code_ru', '')} ст.{doc.metadata.get('article_number', '')} — {doc.page_content[:200].replace(chr(10), ' ')}..."
             for j, doc in enumerate(sources)
         ])
-
         full_text = f"{response}\n\nИсточники:\n{sources_text}"
-
         st.download_button(
-            label="Скачать ответ как TXT",
+            label=DOWNLOAD_LABEL[st.session_state.lang],
             data=full_text,
             file_name="ответ_по_законам.txt",
-            mime="text/plain"
+            mime="text/plain",
         )
-    # Сохраняем ответ в историю
     st.session_state.messages.append({"role": "assistant", "content": response})
 
-# Кнопка очистки чата (если история длинная)
-if len(st.session_state.messages) > 2 and st.button("Очистить весь чат"):
+if len(st.session_state.messages) > 2 and st.button(CLEAR_CHAT[st.session_state.lang] + " (все)", key="clear_all"):
     st.session_state.messages = []
     st.rerun()

@@ -1,13 +1,22 @@
-# benchmark.py — ИДЕАЛЬНЫЙ бенчмарк Legal RAG (свой, под законы РК)
+# benchmark.py — бенчмарк Legal RAG для РК: Accuracy, Faithfulness, ROUGE (LegalBench-адапт.)
 
 import time
 import json
+import re
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 import signal
 import os
 
-from rag_chain import qa_chain  # твоя qa_chain
+import config
+from rag_chain import qa_chain
+
+# Индексы вопросов-ловушек (1-based): ожидается ответ "Информация не найдена..."
+# В текущем списке: блок "81–90" (NFT 2035, льготы 2040, НДС 2035 и т.д.)
+TRAP_QUESTION_INDICES = set(range(31, 41))  # подстрой под свой список при 50+ вопросах
+NOT_FOUND_PHRASES = ("не найдена", "не найден", "тапсырмада жоқ", "информация не найдена")
+DISCLAIMER_PHRASES = ("не официальная юридическая консультация", "ресми заңдық кеңес емес")
 
 # ======================
 # 50 вопросов — идеально сбалансированные
@@ -213,9 +222,11 @@ for idx, question in enumerate(questions, 1):
 # ======================
 # Сохранение результатов
 # ======================
+config.BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
-excel_file = f"legal_rag_benchmark2_{timestamp}.xlsx"
-json_file = f"legal_rag_benchmark2_{timestamp}.json"
+excel_file = str(config.BENCHMARK_DIR / f"legal_rag_benchmark_{timestamp}.xlsx")
+json_file = str(config.BENCHMARK_DIR / f"legal_rag_benchmark_{timestamp}.json")
+metrics_file = str(config.BENCHMARK_DIR / f"legal_rag_metrics_{timestamp}.json")
 
 # Excel
 df = pd.DataFrame(results)
@@ -225,29 +236,88 @@ df.to_excel(excel_file, index=False, engine='openpyxl')
 with open(json_file, 'w', encoding='utf-8') as f:
     json.dump(results, f, ensure_ascii=False, indent=2)
 
+# ======================
+# Автоматические метрики (Accuracy, Faithfulness, ROUGE)
+# ======================
+def _has_not_found(text):
+    if not text or not isinstance(text, str):
+        return False
+    t = text.lower()
+    return any(p in t for p in NOT_FOUND_PHRASES)
+
+def _has_disclaimer(text):
+    if not text or not isinstance(text, str):
+        return False
+    t = text.lower()
+    return any(p in t for p in DISCLAIMER_PHRASES)
+
+# Точность на ловушках: для trap-вопросов правильный ответ — "не найдена"
+trap_results = [r for i, r in enumerate(results, 1) if i in TRAP_QUESTION_INDICES]
+trap_correct = sum(1 for r in trap_results if _has_not_found(r.get("Ответ", "")))
+trap_accuracy = (trap_correct / len(trap_results) * 100) if trap_results else 0.0
+
+# Faithfulness (эвристика): есть дисклеймер + для нетрапов не пустой ответ; для трапов — "не найдена"
+with_disclaimer = sum(1 for r in results if _has_disclaimer(r.get("Ответ", "")))
+faithfulness_heuristic = (with_disclaimer / len(results) * 100) if results else 0.0
+
+# Доля ответов "не найдена" (ожидаемо для ловушек)
+not_found_count = sum(1 for r in results if _has_not_found(r.get("Ответ", "")))
+not_found_pct = (not_found_count / len(results) * 100) if results else 0.0
+
+# Автозаполнение колонки для ловушек (для Excel)
+for i, r in enumerate(results):
+    idx = i + 1
+    if idx in TRAP_QUESTION_INDICES:
+        r["Авто_ловушка"] = "Да" if _has_not_found(r.get("Ответ", "")) else "Нет"
+    else:
+        r["Авто_ловушка"] = "—"
+
+avg_time = sum(r.get("Время (сек)", 0) for r in results) / len(results) if results else 0
+
+# ROUGE-L (если есть эталоны)
+rouge_l_scores = []
+references_path = config.BASE_DIR / "benchmark_references.json"
+if references_path.exists():
+    try:
+        from rouge_score import rouge_scorer
+        with open(references_path, "r", encoding="utf-8") as f:
+            refs = json.load(f)
+        scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=False)
+        for i, r in enumerate(results):
+            ref = refs.get(str(i + 1)) or refs.get(str(r.get("№", i + 1)))
+            if ref and r.get("Ответ") and "ОШИБКА" not in str(r.get("Ответ", "")):
+                score = scorer.score(ref, r["Ответ"])
+                rouge_l_scores.append(score["rougeL"].fmeasure)
+        rouge_l_avg = sum(rouge_l_scores) / len(rouge_l_scores) * 100 if rouge_l_scores else None
+    except Exception as e:
+        rouge_l_avg = None
+else:
+    rouge_l_avg = None
+
+metrics = {
+    "timestamp": timestamp,
+    "n_questions": len(results),
+    "trap_accuracy_pct": round(trap_accuracy, 1),
+    "faithfulness_heuristic_pct": round(faithfulness_heuristic, 1),
+    "not_found_pct": round(not_found_pct, 1),
+    "avg_time_sec": round(avg_time, 2),
+    "rouge_l_pct": round(rouge_l_avg, 2) if rouge_l_avg is not None else None,
+}
+with open(metrics_file, "w", encoding="utf-8") as f:
+    json.dump(metrics, f, ensure_ascii=False, indent=2)
+
+# Перезаписываем Excel с новой колонкой Авто_ловушка
+df = pd.DataFrame(results)
+df.to_excel(excel_file, index=False, engine='openpyxl')
+
 print(f"\nБенчмарк завершён!")
-print(f"Сохранено в:")
-print(f"  - Excel: {excel_file}")
-print(f"  - JSON:  {json_file}")
+print(f"Сохранено: Excel {excel_file}, JSON {json_file}, метрики {metrics_file}")
 print(f"Обработано вопросов: {len(results)}")
-
-# ======================
-# Автоматические метрики (после ручного заполнения)
-# ======================
-print("\nПосле заполнения Excel можно посчитать метрики:")
-print("1. Откройте Excel и заполните 'Правильность' и 'Галлюцинация' вручную.")
-print("2. Затем запустите этот блок кода в Jupyter или отдельно:")
-
-print("""
-filled_df = pd.read_excel('{}')
-
-accuracy = (filled_df['Правильность'] == 'Да').mean() * 100
-faithfulness = (filled_df['Галлюцинация'] == 'Нет').mean() * 100
-avg_speed = filled_df['Время (сек)'].mean()
-not_found_pct = (filled_df['Ответ'].str.contains('не найдена', case=False, na=False)).mean() * 100
-
-print(f"Accuracy: {accuracy:.1f}%")
-print(f"Faithfulness: {faithfulness:.1f}%")
-print(f"Среднее время: {avg_speed:.1f} сек")
-print(f"% 'Информация не найдена': {not_found_pct:.1f}%")
-""".format(excel_file))
+print("\n--- Автоматические метрики ---")
+print(f"Точность на ловушках (trap accuracy): {trap_accuracy:.1f}%")
+print(f"Faithfulness (дисклеймер): {faithfulness_heuristic:.1f}%")
+print(f"% ответов «Информация не найдена»: {not_found_pct:.1f}%")
+print(f"Среднее время ответа: {avg_time:.1f} сек")
+if rouge_l_avg is not None:
+    print(f"ROUGE-L (по эталонам): {rouge_l_avg:.2f}%")
+print("\nДля полной Accuracy/Faithfulness заполните в Excel колонки 'Правильность' и 'Галлюцинация' и пересчитайте.")

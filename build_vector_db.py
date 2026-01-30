@@ -1,8 +1,10 @@
-# build_vector_db.py — финальная версия с префиксами и проверкой
+# build_vector_db.py — векторная база с префиксами и метаданными
 
+import config
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from prepare_data import chunks, raw_docs
+
 
 class PrefixedEmbeddings:
     def __init__(self, embeddings):
@@ -15,15 +17,16 @@ class PrefixedEmbeddings:
         return self.embeddings.embed_query("query: " + text)
 
 embeddings = PrefixedEmbeddings(HuggingFaceEmbeddings(
-    model_name="intfloat/multilingual-e5-large",
+    model_name=config.EMBEDDING_MODEL,
     encode_kwargs={"normalize_embeddings": True}
 ))
 
+config.CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 vector_store = Chroma.from_documents(
     documents=chunks,
     embedding=embeddings,
-    persist_directory="./chroma_db",
-    collection_name="legal_kz_2026"  # уникальное имя, чтобы не путаться
+    persist_directory=str(config.CHROMA_DIR),
+    collection_name=config.COLLECTION_NAME,
 )
 
 print("База создана!")

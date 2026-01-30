@@ -3,8 +3,10 @@
 rag-env-312/
 rag_env/
 
-# База данных Chroma
+# База данных Chroma и результаты бенчмарка
 chroma_db/
+benchmark_results/
+article_ref_graph.json
 
 # Системные файлы Mac
 .DS_Store
