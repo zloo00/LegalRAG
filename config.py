@@ -1,4 +1,4 @@
-# config.py — настройки Legal RAG (локально, без облаков)
+# config.py — Legal RAG: Pinecone, Adilet, все 20 документов
 
 import os
 from pathlib import Path
@@ -6,42 +6,63 @@ from pathlib import Path
 # Пути
 BASE_DIR = Path(__file__).resolve().parent
 DOCUMENTS_DIR = BASE_DIR / "documents"
-CHROMA_DIR = BASE_DIR / "chroma_db"
 BENCHMARK_DIR = BASE_DIR / "benchmark_results"
 
-# Векторная база
-COLLECTION_NAME = "legal_kz_2026"
+# Adilet ZAN — источник актуальных кодексов (adilet.zan.kz)
+ADILET_BASE_URL = "https://adilet.zan.kz/rus/docs"
+# (имя файла в documents/, ID документа на Adilet)
+ADILET_SOURCES = [
+    ("constitution.txt", "K950001000_"),           # 1. Конституция РК
+    ("civil_code.txt", "K940001000_"),             # 2. ГК РК (Общая часть)
+    ("civil_code2.txt", "K990000409_"),            # 3. ГК РК (Особенная часть)
+    ("labor_code.txt", "K1500000414"),             # 4. Трудовой кодекс РК
+    ("tax_code.txt", "K1700000120"),               # 5. Налоговый кодекс РК
+    ("code_of_administrative_offenses.txt", "K1400000235"),  # 6. КоАП РК
+    ("criminal_code.txt", "K1400000226"),         # 7. Уголовный кодекс РК
+    ("code_on_marriage_and_family.txt", "K1100000518"),  # 8. О браке и семье
+    ("code_on_public_health.txt", "K2000000360"),  # 9. О здоровье народа
+    ("entrepreneurial_code.txt", "K1500000375"),   # 10. Предпринимательский кодекс
+    ("code_on_administrative_procedures.txt", "K2000000350"),  # 11. Об административных процедурах
+    ("social_code.txt", "K2300000224"),            # 12. Социальный кодекс РК
+    ("civil_procedure_code.txt", "K1500000377"),   # 13. ГПК РК
+    ("criminal_procedure_code.txt", "K1400000231"),  # 14. УПК РК
+    ("law_on_public_procurement.txt", "Z2400000106"),  # 16. О государственных закупках
+    ("law_on_anticorruption.txt", "K1500000410"),  # 17. О противодействии коррупции
+    ("law_on_enforcement.txt", "Z100000261_"),    # 18. Об исполнительном производстве
+    ("law_on_personal_data.txt", "K130000094_"),  # 19. О персональных данных
+    ("law_on_ai.txt", "Z250000230"),              # 20. Об искусственном интеллекте
+]
 
-# Эмбеддинги: multilingual-e5-large (SOTA для RU/KZ) или Jina v3
+# Pinecone — векторная БД (облако)
+PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "legal-rag-kz")
+PINECONE_NAMESPACE = os.environ.get("PINECONE_NAMESPACE", "legal_kz")
+PINECONE_DIMENSION = 1024  # multilingual-e5-large
+
+# Эмбеддинги
 EMBEDDING_MODEL = os.environ.get("LEGAL_RAG_EMBEDDING", "intfloat/multilingual-e5-large")
-# Альтернатива: "jinaai/jina-embeddings-v3" — требует API key
 
 # LLM (Ollama локально)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:8b")
-LLM_TEMPERATURE = 0.0  # минимум креативности, максимум точности
+LLM_TEMPERATURE = 0.0
 
-# Retriever
-RETRIEVER_TOP_K = 12          # сколько чанков достаём до rerank
-RETRIEVER_TOP_K_AFTER_RERANK = 5  # сколько оставляем после rerank
-BM25_WEIGHT = 0.2             # гибрид: BM25
-VECTOR_WEIGHT = 0.8           # гибрид: семантика (увеличено для лучшего понимания смысла)
+# Retriever (k=5 — меньше шума, меньше галлюцинаций)
+RETRIEVER_TOP_K = 5
+RETRIEVER_TOP_K_AFTER_RERANK = 5
+HYBRID_K = 5
+BM25_WEIGHT = 0.25
+VECTOR_WEIGHT = 0.75
+CHUNKS_PICKLE_PATH = BASE_DIR / "chunks_for_bm25.pkl"
 
-# Reranker (FlashRank)
+# Reranker
 USE_RERANKER = os.environ.get("LEGAL_RAG_USE_RERANKER", "1") == "1"
-# Модель FlashRank: ms-marco-TinyBERT-L-2-v2 (~4MB) или ms-marco-MiniLM-L-12-v2 (~34MB)
 FLASHRANK_MODEL = "ms-marco-TinyBERT-L-2-v2"
-
-# Graph RAG (связи статей: ст. X → ст. Y). Файл графа: article_ref_graph.json
-USE_GRAPH_RAG = os.environ.get("LEGAL_RAG_USE_GRAPH", "0") == "1"
-GRAPH_PATH = BASE_DIR / "article_ref_graph.json"
-# Neo4j (опционально): задайте NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD для записи графа в Neo4j
 
 # Бенчмарк
 BENCHMARK_TIMEOUT_SEC = 300
 BENCHMARK_QUESTIONS_MIN = 100
 
-# Безопасность и AI-закон РК
+# Безопасность
 DISCLAIMER_RU = (
     "Это не официальная юридическая консультация и не заменяет адвоката. "
     "Информация основана исключительно на текстах законов. "
@@ -52,7 +73,6 @@ DISCLAIMER_KZ = (
     "Ақпарат тек заң мәтініне негізделген. "
     "Актуалды редакцияларды adilet.zan.kz сайтында тексеріңіз."
 )
-# Соответствие закону РК об ИИ: прозрачность ответов, без манипуляций
 AI_LAW_COMPLIANCE_NOTE = (
     "Ответ сформирован автоматически на основе извлечённых статей; "
     "источники указаны для проверки (требования прозрачности)."

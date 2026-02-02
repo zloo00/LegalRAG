@@ -1,8 +1,15 @@
-# build_vector_db.py — векторная база с префиксами и метаданными
+# build_vector_db.py — Pinecone: чанки из documents/ (парсинг с Adilet)
+# Если обновили documents/ (например, перекачали УК РК): очистите namespace в Pinecone
+# или удалите индекс и создайте заново, затем запустите этот скрипт (иначе будут дубликаты).
+
+import pickle
+import os
+import time
 
 import config
-from langchain_chroma import Chroma
+from langchain_pinecone import PineconeVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.documents import Document
 from prepare_data import chunks, raw_docs
 
 
@@ -16,28 +23,187 @@ class PrefixedEmbeddings:
     def embed_query(self, text):
         return self.embeddings.embed_query("query: " + text)
 
+
 embeddings = PrefixedEmbeddings(HuggingFaceEmbeddings(
     model_name=config.EMBEDDING_MODEL,
     encode_kwargs={"normalize_embeddings": True}
 ))
 
-config.CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-vector_store = Chroma.from_documents(
-    documents=chunks,
+api_key = os.environ.get("PINECONE_API_KEY")
+if not api_key:
+    raise SystemExit("Задайте PINECONE_API_KEY: export PINECONE_API_KEY=...")
+
+from pinecone import Pinecone, ServerlessSpec
+pc = Pinecone(api_key=api_key)
+
+index_name = config.PINECONE_INDEX_NAME
+namespace = config.PINECONE_NAMESPACE or "default"
+
+existing = [i.name for i in pc.list_indexes()]
+if index_name not in existing:
+    print(f"Создаём индекс {index_name}...")
+    try:
+        pc.create_index(
+            name=index_name,
+            dimension=config.PINECONE_DIMENSION,
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
+        )
+        print("Индекс создан. Ожидание готовности...")
+        while not pc.describe_index(index_name).status.get("ready"):
+            time.sleep(2)
+        print("Индекс готов.")
+    except Exception as e:
+        if "already exists" in str(e).lower():
+            print("Индекс уже существует.")
+        else:
+            raise e
+
+print(f"Подключение к индексу {index_name} (namespace: {namespace})")
+
+vector_store = PineconeVectorStore(
+    index_name=index_name,
     embedding=embeddings,
-    persist_directory=str(config.CHROMA_DIR),
-    collection_name=config.COLLECTION_NAME,
+    namespace=namespace
 )
 
-print("База создана!")
+# Pinecone limit: 40 KB на метаданные одного вектора.
+# langchain_pinecone при add_documents добавляет в метаданные ключ "text" = page_content (полный текст).
+# Поэтому обрезаем page_content перед загрузкой, чтобы metadata["text"] + остальные поля < 40 KB.
+PINECONE_METADATA_LIMIT_BYTES = 40960
+# Резерв на наши поля (source, code_ru, code_kz, article_number) и сериализацию: ~1 KB
+MAX_TEXT_IN_METADATA_BYTES = PINECONE_METADATA_LIMIT_BYTES - 1024
+# Макс. символов для "text" (кириллица до 4 байт/символ: 8000*4=32KB + наши поля < 40KB)
+MAX_PAGE_CONTENT_CHARS = 8000
+
+# Whitelist + blacklist: только короткие поля, длинные — удалить или обрезать
+def clean_metadata(meta: dict) -> dict:
+    """
+    Очищает метаданные: whitelist коротких полей + blacklist длинных.
+    Гарантирует размер < 2 KB (лимит Pinecone: 40 KB).
+    """
+    blacklist = [
+        'text', 'content', 'full_text', 'raw', 'body', 'snippet', 'notes',
+        'chapter_text', 'page_content', 'raw_text', 'chapter_content',
+        'article_text', 'snippets', 'full_article', 'raw_content'
+    ]
+    allowed = ['source', 'code_ru', 'code_kz', 'article_number', 'chapter', 'section']
+
+    clean = {}
+    for k, v in meta.items():
+        if k in blacklist:
+            continue  # не добавляем длинные поля вообще
+        if k in allowed:
+            v_str = str(v)
+            clean[k] = v_str[:200] + '...' if len(v_str) > 200 else v_str
+        else:
+            # неизвестное поле — добавляем только если короткое, иначе обрезаем
+            v_str = str(v)
+            size_bytes = len(v_str.encode('utf-8'))
+            if size_bytes < 1000:
+                clean[k] = v_str
+            else:
+                print(f"Предупреждение: поле '{k}' обрезано (было {size_bytes} байт)")
+                clean[k] = v_str[:200] + '...'
+    return clean
+
+print("Очистка метаданных (Pinecone limit: 40 KB)...")
+print("Отладка метаданных (ищем превышение):")
+
+clean_chunks = []
+max_meta_size = 0
+bad_chunk_idx = -1
+bad_chunks_found = []
+
+for idx, chunk in enumerate(chunks):
+    clean_meta = clean_metadata(chunk.metadata)
+    # Проверяем размер метаданных в байтах (UTF-8) после сериализации
+    meta_str = str(clean_meta)
+    meta_size = len(meta_str.encode('utf-8'))
+    
+    if meta_size > max_meta_size:
+        max_meta_size = meta_size
+        bad_chunk_idx = idx
+    
+    # Находим все чанки с метаданными > 38 KB (чуть ниже лимита для отладки)
+    if meta_size > 38000:
+        bad_chunks_found.append((idx, meta_size, clean_meta, chunk.page_content[:200]))
+        print(f"!!! Чанк {idx} — размер метаданных: {meta_size} байт")
+        print(f"   Метаданные: {clean_meta}")
+        print(f"   Текст чанка (первые 200): {chunk.page_content[:200]}...\n")
+    
+    # Обрезаем page_content: библиотека положит его в metadata["text"], лимит 40 KB
+    content = chunk.page_content
+    if len(content.encode('utf-8')) > MAX_TEXT_IN_METADATA_BYTES:
+        content = content[:MAX_PAGE_CONTENT_CHARS] + "\n[... текст обрезан из-за лимита Pinecone 40 KB ...]"
+    clean_chunk = Document(page_content=content, metadata=clean_meta)
+    clean_chunks.append(clean_chunk)
+
+print(f"Максимальный размер метаданных: {max_meta_size} байт (лимит: 40960)")
+if bad_chunk_idx >= 0:
+    print(f"Самый большой чанк №{bad_chunk_idx} — проверьте его метаданные!")
+    if bad_chunk_idx < len(chunks):
+        print(f"   Исходные метаданные: {chunks[bad_chunk_idx].metadata}")
+        print(f"   Очищенные метаданные: {clean_chunks[bad_chunk_idx].metadata}")
+
+if max_meta_size > 40960:
+    print(f"\n⚠️  ОШИБКА: Размер метаданных превышает лимит Pinecone!")
+    print(f"   Найдено проблемных чанков: {len(bad_chunks_found)}")
+    if bad_chunks_found:
+        print("   Первый проблемный чанк:")
+        idx, size, meta, content = bad_chunks_found[0]
+        print(f"   Индекс: {idx}, Размер: {size} байт")
+        print(f"   Метаданные: {meta}")
+    raise SystemExit("Исправьте метаданные перед загрузкой в Pinecone!")
+
+# Отладка ПЕРЕД загрузкой: библиотека добавит metadata["text"] = page_content
+print("\n=== ОТЛАДКА ПЕРЕД UPLOAD (библиотека добавит 'text' = page_content) ===")
+max_meta_only = 0
+max_total_est = 0
+bad_idx = -1
+
+for idx, chunk in enumerate(clean_chunks):
+    meta_bytes = len(str(chunk.metadata).encode('utf-8'))
+    text_bytes = len(chunk.page_content.encode('utf-8'))
+    total_est = meta_bytes + text_bytes + 20  # +20 на ключ "text" и сериализацию
+    max_meta_only = max(max_meta_only, meta_bytes)
+    if total_est > max_total_est:
+        max_total_est = total_est
+        bad_idx = idx
+    if total_est > 38000:
+        print(f"!!! Чанк №{idx} — оценка итога: {total_est} байт (meta: {meta_bytes}, text: {text_bytes})")
+        print(f"   Метаданные: {chunk.metadata}")
+        print(f"   Первые 200 символов текста: {chunk.page_content[:200]}...\n")
+
+print(f"Метаданные (без text): макс. {max_meta_only} байт")
+print(f"Оценка макс. итога (meta + text): {max_total_est} байт (лимит: 40960)")
+if bad_idx >= 0 and max_total_est > 40960:
+    print(f"Проблемный чанк №{bad_idx} — page_content обрезан до {MAX_PAGE_CONTENT_CHARS} символов")
+
+if max_total_est > 40960:
+    print(f"\n⚠️  СТОП: оценка размера > 40 KB. Уменьшите MAX_PAGE_CONTENT_CHARS.")
+    raise SystemExit("См. константы MAX_PAGE_CONTENT_CHARS / MAX_TEXT_IN_METADATA_BYTES выше.")
+
+print(f"Загрузка {len(clean_chunks)} чанков...")
+vector_store.add_documents(clean_chunks, batch_size=200)
+
+# Сохраняем очищенные чанки для BM25
+with open(config.CHUNKS_PICKLE_PATH, "wb") as f:
+    pickle.dump(clean_chunks, f)
+
+print("База Pinecone создана!")
 print(f"Документов: {len(raw_docs)}")
 print(f"Чанков: {len(chunks)}")
-print(f"Реальное количество в базе: {vector_store._collection.count()}")
 
-# Тестовый поиск сразу после создания
+# Тест
 test_query = "принципы трудового законодательства"
+print(f"\nТестовый поиск: '{test_query}'")
 test_results = vector_store.similarity_search(test_query, k=3)
-print("\nТестовый поиск после создания:")
+
 for i, doc in enumerate(test_results, 1):
-    print(f"{i}. {doc.metadata.get('source')}")
-    print(f"   {doc.page_content[:200]}...\n")
+    source = doc.metadata.get('source', 'неизвестно')
+    article = doc.metadata.get('article_number', '-')
+    code_ru = doc.metadata.get('code_ru', '-')
+    content = doc.page_content[:150].replace('\n', ' ')
+    print(f"{i}. {code_ru} ст. {article} | {source}")
+    print(f"   {content}...\n")

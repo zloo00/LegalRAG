@@ -3,17 +3,11 @@
 rag-env-312/
 rag_env/
 
-# База данных Chroma и результаты бенчмарка
-chroma_db/
+# Pinecone — облако; локальные артефакты
 benchmark_results/
-article_ref_graph.json
+chunks_for_bm25.pkl
 
-# Системные файлы Mac
-.DS_Store
-
-# Файлы данных (если они тяжелые)
-documents/chroma_db/
-.venv/
+# Системные
 __pycache__/
 .DS_Store
 .env
