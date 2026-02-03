@@ -50,6 +50,8 @@ except ImportError:
 
 if BM25Retriever is not None:
     for _mod, _name in [
+        ("langchain_classic.retrievers", "EnsembleRetriever"),
+        ("langchain_classic.retrievers.ensemble", "EnsembleRetriever"),
         ("langchain.retrievers.ensemble", "EnsembleRetriever"),
         ("langchain.retrievers", "EnsembleRetriever"),
         ("langchain_community.retrievers", "EnsembleRetriever"),
