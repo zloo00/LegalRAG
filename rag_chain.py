@@ -2,6 +2,7 @@
 
 import pickle
 import os
+import re
 from typing import Any, List
 
 import config
@@ -40,8 +41,11 @@ print(f"Pinecone подключён: {config.PINECONE_INDEX_NAME}")
 _hybrid_k = getattr(config, "HYBRID_K", 8)
 _vector_kwargs = {"k": _hybrid_k}
 
-# Расширенный фильтр по кодексу: ловит все варианты названия (УК РК, Қылмыстық кодекс и т.д.)
+# Расширенные фильтры Pinecone:
+# - по кодексу: ловит варианты названия (УК РК, Қылмыстық кодекс и т.д.)
+# - по номеру статьи: например, 136 для кейса акушерки (баланы ауыстыру)
 _filter_code = getattr(config, "RETRIEVER_FILTER_CODE_RU", None)
+_filter_article = getattr(config, "RETRIEVER_FILTER_ARTICLE_NUMBER", None)
 _uk_variants = [
     "Уголовный кодекс РК",
     "Уголовный кодекс Республики Казахстан",
@@ -49,28 +53,93 @@ _uk_variants = [
     "УК РК",
 ]
 _allowed_code_ru_for_filter = None
+_filter_clauses: list[dict] = []
+
 if _filter_code:
     # Pinecone не поддерживает $regex — используем $or по известным вариантам
     _variants = list(dict.fromkeys([_filter_code] + [v for v in _uk_variants if v != _filter_code]))
     _allowed_code_ru_for_filter = _variants
-    _vector_kwargs["filter"] = {"$or": [{"code_ru": v} for v in _variants]}
-    _vector_kwargs["k"] = min(getattr(config, "HYBRID_K", 8) + 4, 15)  # k=12 при HYBRID_K=8 — больше шансов вытащить ст. 136
-    print(f"Фильтр Pinecone: $or по code_ru = {_variants}")
+    _filter_clauses.append({"$or": [{"code_ru": v} for v in _variants]})
+
+if _filter_article:
+    # Точный номер статьи хранится как строка в metadata["article_number"]
+    _filter_clauses.append({"article_number": _filter_article})
+
+if _filter_clauses:
+    if len(_filter_clauses) == 1:
+        _vector_kwargs["filter"] = _filter_clauses[0]
+    else:
+        _vector_kwargs["filter"] = {"$and": _filter_clauses}
+    # При включённых фильтрах немного увеличиваем k для надёжности
+    _vector_kwargs["k"] = min(getattr(config, "HYBRID_K", 8) + 4, 15)
+    print(f"Фильтр Pinecone search_kwargs: {_vector_kwargs.get('filter')}")
+
 _vector_retriever = vector_store.as_retriever(search_kwargs=_vector_kwargs)
 
 
 class _FilterByCodeRetriever(BaseRetriever):
-    """Оставляет только документы с code_ru из разрешённого списка (убирает шум от BM25)."""
+    """Оставляет только документы с разрешённым code_ru и/или article_number (убирает шум от BM25)."""
     retriever: Any
-    allowed_code_ru: List[str]
+    allowed_code_ru: List[str] | None = None
+    article_number: str | None = None
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
     ) -> List[Document]:
         docs = self.retriever.invoke(query)
-        allowed = set(self.allowed_code_ru)
-        filtered = [d for d in docs if (d.metadata.get("code_ru") or "").strip() in allowed]
+        filtered = docs
+
+        if self.allowed_code_ru:
+            allowed = set(self.allowed_code_ru)
+            filtered = [d for d in filtered if (d.metadata.get("code_ru") or "").strip() in allowed]
+
+        if self.article_number:
+            filtered = [d for d in filtered if (d.metadata.get("article_number") or "").strip() == self.article_number]
+
         return filtered if filtered else docs[:5]  # fallback: хоть что-то вернуть
+
+
+def _extract_article_range(query: str) -> tuple[int, int] | None:
+    match = re.search(r"(?:статья|ст\.|ст|бап)?\s*(\d+)\s*[-–—]\s*(\d+)", query or "", re.IGNORECASE)
+    if not match:
+        return None
+    start = int(match.group(1))
+    end = int(match.group(2))
+    return (start, end) if start <= end else (end, start)
+
+
+def _augment_retrieval_query(query: str) -> str:
+    q = (query or "").lower()
+    extras: list[str] = []
+    if any(token in q for token in ("баланы ауыстыру", "ауыстыр", "нәресте", "білезік", "подмена ребенка")):
+        extras.append("подмена ребенка статья 136 УК РК")
+    range_match = _extract_article_range(query)
+    if range_match and ("ук" in q or "қылмыстық" in q or "уголов" in q):
+        start, end = range_match
+        nums = " ".join(str(n) for n in range(start, end + 1))
+        extras.append(f"статьи {nums} УК РК")
+    return (query + " " + " ".join(extras)).strip() if extras else query
+
+
+class _HeuristicRetriever(BaseRetriever):
+    """Лёгкий эвристический слой: расширяет запрос и мягко фильтрует диапазоны статей."""
+    base_retriever: Any
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
+    ) -> List[Document]:
+        search_query = _augment_retrieval_query(query)
+        docs = self.base_retriever.invoke(search_query)
+        range_match = _extract_article_range(query)
+        if range_match:
+            start, end = range_match
+            filtered = [
+                d for d in docs
+                if (d.metadata.get("article_number") or "").strip().isdigit()
+                and start <= int(d.metadata.get("article_number")) <= end
+            ]
+            return filtered if filtered else docs
+        return docs
 
 
 base_retriever = _vector_retriever
@@ -118,11 +187,16 @@ except ImportError as e:
 except Exception as e:
     print(f"BM25 не запустился: {e}. Используется только Pinecone.")
 
-if _allowed_code_ru_for_filter:
-    base_retriever = _FilterByCodeRetriever(retriever=base_retriever, allowed_code_ru=_allowed_code_ru_for_filter)
-    print("Включён пост-фильтр по кодексу (только разрешённые code_ru).")
+if _allowed_code_ru_for_filter or _filter_article:
+    base_retriever = _FilterByCodeRetriever(
+        retriever=base_retriever,
+        allowed_code_ru=_allowed_code_ru_for_filter,
+        article_number=_filter_article,
+    )
+    print("Включён пост-фильтр по кодексу/статье (только разрешённые code_ru/article_number).")
 
-retriever = base_retriever
+retriever = _HeuristicRetriever(base_retriever=base_retriever)
+# ------------------- УЛУЧШЕННЫЙ RERANKER -------------------
 if config.USE_RERANKER:
     try:
         try:
@@ -130,18 +204,51 @@ if config.USE_RERANKER:
         except ImportError:
             from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
         from langchain_community.document_compressors import FlashrankRerank
+
+        print("Попытка инициализации FlashRank reranker...")
+
+        # Список моделей по убыванию качества (rank-T5-flan — самая сильная для юридического текста)
+        rerank_model_priority = [
+            "rank-T5-flan",
+            "ms-marco-MiniLM-L-12-v2",
+            "ms-marco-TinyBERT-L-2-v2",
+        ]
+
         compressor = None
-        for model_name in (config.FLASHRANK_MODEL, "ms-marco-TinyBERT-L-2-v2", None):
+        used_model = None
+
+        for model_name in rerank_model_priority:
             try:
-                compressor = FlashrankRerank(model=model_name, top_n=config.RETRIEVER_TOP_K_AFTER_RERANK)
+                compressor = FlashrankRerank(
+                    model=model_name,
+                    top_n=config.RETRIEVER_TOP_K_AFTER_RERANK or 6,
+                    max_length=1024,
+                )
+                used_model = model_name
+                print(f"Успешно запущен FlashRank reranker: {model_name}")
                 break
-            except Exception:
+            except Exception as exc:
+                print(f"Модель {model_name} не запустилась: {exc}")
                 continue
+
         if compressor is not None:
-            retriever = ContextualCompressionRetriever(base_compressor=compressor, base_retriever=base_retriever)
-            print("Reranker FlashRank включён.")
+            retriever = ContextualCompressionRetriever(
+                base_compressor=compressor,
+                base_retriever=base_retriever,
+            )
+            print(f"Reranker включён (модель: {used_model}, top_n: {compressor.top_n})")
+        else:
+            print("Ни одна модель FlashRank не запустилась → reranker отключён.")
+
+    except ImportError as ie:
+        print(
+            f"Ошибка импорта: {ie}. Установите langchain-community и flashrank "
+            f"(и при необходимости langchain-classic): pip install langchain-community flashrank langchain-classic"
+        )
     except Exception as e:
-        print("FlashRank отключён:", e)
+        print(f"Reranker полностью отключён из-за ошибки: {e}")
+else:
+    print("Reranker отключён в config (USE_RERANKER=False)")
 
 # Выбор LLM: локальная Ollama или облачный Groq (\"облачный оллама\")
 _llm_backend = os.environ.get("LEGAL_RAG_LLM_BACKEND", "ollama").lower()
@@ -181,6 +288,7 @@ prompt_template = """Ты — точный юридический ассисте
 Если в контексте нет ответа — отвечай ровно одной строкой: "Информация не найдена в доступных текстах законов."
 Если вопрос на казахском — отвечай только на казахском, используя точные формулировки НҚА.
 Для уголовных дел всегда проверяй УК РК и указывай точную статью и санкцию.
+Если в вопросе указан номер статьи — цитируй именно эту статью дословно, без пересказа.
 Если статья содержит список принципов — перечисляй ВСЕ пункты дословно, не сокращай.
 Начинай с: "Это не официальная юридическая консультация. Информация только из базы."
 

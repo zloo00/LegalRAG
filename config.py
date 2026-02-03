@@ -54,20 +54,26 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:70b")
 LLM_TEMPERATURE = 0.0
 
-# Retriever (k=8 — больше шансов вытащить ст. 136 УК и др.; reranker отрежет лишнее)
-RETRIEVER_TOP_K = 8
+# Retriever (k=12 — больше шансов вытащить нужные статьи; reranker отрежет лишнее)
+RETRIEVER_TOP_K = 12
 RETRIEVER_TOP_K_AFTER_RERANK = 5
-HYBRID_K = 8
-# Опциональный фильтр Pinecone по кодексу (для теста ст. 136 УК: "Уголовный кодекс РК")
-# В проде оставьте None. Для теста: export LEGAL_RAG_FILTER_CODE_RU="Уголовный кодекс РК"
+HYBRID_K = 12
+# Опциональные фильтры Pinecone:
+# - по кодексу (например, УК РК)
+# - по номеру статьи (например, 136 для "подмена ребенка")
+# В проде обычно оставьте None; включайте на время тестов/кейсов.
+# Пример для ст. 136 УК РК:
+#   LEGAL_RAG_FILTER_CODE_RU="Уголовный кодекс РК"
+#   LEGAL_RAG_FILTER_ARTICLE_NUMBER="136"
 RETRIEVER_FILTER_CODE_RU = os.environ.get("LEGAL_RAG_FILTER_CODE_RU", None)
-BM25_WEIGHT = 0.25
-VECTOR_WEIGHT = 0.75
+RETRIEVER_FILTER_ARTICLE_NUMBER = os.environ.get("LEGAL_RAG_FILTER_ARTICLE_NUMBER", None)
+BM25_WEIGHT = 0.6
+VECTOR_WEIGHT = 0.4
 CHUNKS_PICKLE_PATH = BASE_DIR / "chunks_for_bm25.pkl"
 
 # Reranker
 USE_RERANKER = os.environ.get("LEGAL_RAG_USE_RERANKER", "1") == "1"
-FLASHRANK_MODEL = "ms-marco-TinyBERT-L-2-v2"
+FLASHRANK_MODEL = "ms-marco-MiniLM-L-12-v2"
 
 # Бенчмарк
 BENCHMARK_TIMEOUT_SEC = 300
