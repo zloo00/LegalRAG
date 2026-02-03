@@ -3,8 +3,16 @@
 import os
 from pathlib import Path
 
+# Автозагрузка переменных из .env (локально, .env в .gitignore)
+try:
+    from dotenv import load_dotenv  # type: ignore[import]
+except Exception:
+    load_dotenv = None  # type: ignore[assignment]
+
 # Пути
 BASE_DIR = Path(__file__).resolve().parent
+if load_dotenv is not None:
+    load_dotenv(dotenv_path=BASE_DIR / ".env", override=False)
 DOCUMENTS_DIR = BASE_DIR / "documents"
 BENCHMARK_DIR = BASE_DIR / "benchmark_results"
 
@@ -34,7 +42,7 @@ ADILET_SOURCES = [
 ]
 
 # Pinecone — векторная БД (облако)
-PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "legal-rag-kz")
+PINECONE_INDEX_NAME = os.environ.get("PINECONE_INDEX_NAME", "legal-rag")
 PINECONE_NAMESPACE = os.environ.get("PINECONE_NAMESPACE", "legal_kz")
 PINECONE_DIMENSION = 1024  # multilingual-e5-large
 
@@ -43,13 +51,16 @@ EMBEDDING_MODEL = os.environ.get("LEGAL_RAG_EMBEDDING", "intfloat/multilingual-e
 
 # LLM (Ollama локально)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:8b")
+LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:70b")
 LLM_TEMPERATURE = 0.0
 
-# Retriever (k=5 — меньше шума, меньше галлюцинаций)
-RETRIEVER_TOP_K = 5
+# Retriever (k=8 — больше шансов вытащить ст. 136 УК и др.; reranker отрежет лишнее)
+RETRIEVER_TOP_K = 8
 RETRIEVER_TOP_K_AFTER_RERANK = 5
-HYBRID_K = 5
+HYBRID_K = 8
+# Опциональный фильтр Pinecone по кодексу (для теста ст. 136 УК: "Уголовный кодекс РК")
+# В проде оставьте None. Для теста: export LEGAL_RAG_FILTER_CODE_RU="Уголовный кодекс РК"
+RETRIEVER_FILTER_CODE_RU = os.environ.get("LEGAL_RAG_FILTER_CODE_RU", None)
 BM25_WEIGHT = 0.25
 VECTOR_WEIGHT = 0.75
 CHUNKS_PICKLE_PATH = BASE_DIR / "chunks_for_bm25.pkl"

@@ -31,9 +31,9 @@ CODE_NAMES = {
     "law_on_ai.txt": ("Закон об искусственном интеллекте РК", "Жасанды интеллект туралы заң"),
 }
 
-# Regex для извлечения номера статьи из начала чанка
+# Regex для извлечения номера статьи из начала чанка (^\s* — ведущий пробел в файлах Adilet)
 ARTICLE_HEADER = re.compile(
-    r'^(?:Статья|Стаття|Мәтін|Article|Section)\s*(\d+[а-яА-Яa-zA-Z]?)\.?\s*',
+    r'^\s*(?:Статья|Стаття|Мәтін|Article|Section)\s*(\d+[а-яА-Яa-zA-Z]?)\.?\s*',
     re.IGNORECASE
 )
 
@@ -152,8 +152,9 @@ class ArticleTextSplitter(TextSplitter):
     """
 
     def split_text(self, text: str) -> list[str]:
+        # ^\s* — в УК РК заголовки часто с ведущим пробелом (" Статья 136.")
         article_pattern = re.compile(
-            r'(?m)^(Статья|Стаття|Мәтін|Article|Section)\s*(\d+[а-яА-Яa-zA-Z]?)\.?\s*(.*?$)',
+            r'(?m)^\s*(Статья|Стаття|Мәтін|Article|Section)\s*(\d+[а-яА-Яa-zA-Z]?)\.?\s*(.*?$)',
             re.IGNORECASE | re.DOTALL
         )
         matches = list(article_pattern.finditer(text))

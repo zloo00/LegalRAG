@@ -14,6 +14,9 @@ langchain-huggingface>=0.1.0
 langchain-ollama>=0.2.0
 langchain-text-splitters>=0.3.0
 
+# .env
+python-dotenv>=1.0.0
+
 # Классический RetrievalQA (если используется langchain-classic)
 langchain-classic>=0.0.20
 
@@ -25,6 +28,9 @@ rank_bm25>=0.2.2
 
 # Reranker для топ-релевантных чанков
 flashrank>=0.2.0
+
+# Облачный LLM (Groq) — опционально, включается LEGAL_RAG_LLM_BACKEND=groq
+langchain-groq>=0.1.0
 
 # UI
 streamlit>=1.28.0

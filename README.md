@@ -40,38 +40,54 @@ Retrieval-augmented generation по кодексам РК: Pinecone, Adilet, 19 
    pip install -r requirements.txt
    ```
 
-2. **Pinecone:** создайте индекс на [app.pinecone.io](https://app.pinecone.io), задайте:
+2. **Настройки через `.env` (рекомендуется):**
    ```bash
-   export PINECONE_API_KEY=...
-   export PINECONE_INDEX_NAME=legal-rag-kz  # опционально
+   cp .env.example .env
+   # затем открой .env и заполни PINECONE_API_KEY и (опционально) GROQ_API_KEY
    ```
 
-3. **Загрузка кодексов с Adilet:**
+   Альтернатива: можно продолжать задавать переменные через `export`, но `.env` удобнее.
+
+3. **Pinecone:** создайте индекс на [app.pinecone.io](https://app.pinecone.io) (или используйте существующий).
+
+4. **Загрузка кодексов с Adilet:**
    ```bash
    python fetch_adilet.py
    ```
 
-4. **Сборка базы Pinecone:**
+5. **Сборка базы Pinecone:**
    ```bash
    python build_vector_db.py
    ```
 
-5. **Ollama:**
+6. **Ollama (локально):**
    ```bash
    ollama run llama3.1:8b
    ```
 
-6. **Интерфейс:**
+7. **Интерфейс:**
    ```bash
    streamlit run app.py
    ```
 
-7. **Бенчмарк:**
+8. **Бенчмарк:**
    ```bash
    python benchmark.py
    ```
 
 ## Настройки
 
-- `config.py` — ADILET_SOURCES, Pinecone, веса BM25/vector
-- Переменные: `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LEGAL_RAG_LLM`, `OLLAMA_HOST`
+- `config.py` — ADILET_SOURCES, Pinecone, веса BM25/vector, HYBRID_K=8
+- Переменные (через `.env` или `export`): `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, `PINECONE_NAMESPACE`, `LEGAL_RAG_LLM_BACKEND`, `LEGAL_RAG_LLM`, `OLLAMA_HOST`, `GROQ_API_KEY`
+- **Тест только по УК РК** (напр. ст. 136 «баланы ауыстыру»):  
+  `export LEGAL_RAG_FILTER_CODE_RU="Уголовный кодекс РК"` перед запуском app/benchmark
+
+### Облачный LLM (Groq)
+
+Чтобы включить “облачный оллама” через Groq:
+
+```bash
+export LEGAL_RAG_LLM_BACKEND="groq"
+export GROQ_API_KEY="gsk_..."
+export LEGAL_RAG_LLM="llama-3.1-70b-versatile"
+```

@@ -12,6 +12,14 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from prepare_data import chunks, raw_docs
 
+# Проверка до очистки: есть ли ст. 136 УК в распарсенных чанках
+uk_136_chunks = [c for c in chunks if "criminal_code" in c.metadata.get("source", "") and "136" in c.page_content]
+print(f"[Проверка] Чанков со ст. 136 УК (до очистки): {len(uk_136_chunks)}")
+if uk_136_chunks:
+    print("Пример ст. 136 УК:", uk_136_chunks[0].page_content[:300].replace("\n", " "), "...")
+else:
+    print("Ст. 136 УК не найдена в чанках — проверьте criminal_code.txt и чанкинг.")
+
 
 class PrefixedEmbeddings:
     def __init__(self, embeddings):
@@ -194,6 +202,14 @@ with open(config.CHUNKS_PICKLE_PATH, "wb") as f:
 print("База Pinecone создана!")
 print(f"Документов: {len(raw_docs)}")
 print(f"Чанков: {len(chunks)}")
+
+# Проверка после очистки: есть ли ст. 136 УК РК (баланы ауыстыру) в загружаемых чанках
+uk_136 = [c for c in clean_chunks if "criminal_code" in c.metadata.get("source", "") and "136" in c.page_content]
+print(f"[Проверка] Чанков со ст. 136 УК РК (после очистки, в загруженных): {len(uk_136)}")
+if uk_136:
+    print("Пример ст. 136 УК:", uk_136[0].page_content[:250].replace("\n", " "), "...")
+else:
+    print("⚠️  Ст. 136 УК не найдена в чанках — проверьте criminal_code.txt и чанкинг.")
 
 # Тест
 test_query = "принципы трудового законодательства"
