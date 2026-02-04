@@ -53,11 +53,12 @@ EMBEDDING_MODEL = os.environ.get("LEGAL_RAG_EMBEDDING", "intfloat/multilingual-e
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:70b")
 LLM_TEMPERATURE = 0.0
+LLM_MAX_TOKENS = int(os.environ.get("LEGAL_RAG_LLM_MAX_TOKENS", "2048"))
 
 # Retriever (k=12 — больше шансов вытащить нужные статьи; reranker отрежет лишнее)
-RETRIEVER_TOP_K = 12
-RETRIEVER_TOP_K_AFTER_RERANK = 5
-HYBRID_K = 12
+RETRIEVER_TOP_K = 35
+RETRIEVER_TOP_K_AFTER_RERANK = 8
+HYBRID_K = 35
 # Опциональные фильтры Pinecone:
 # - по кодексу (например, УК РК)
 # - по номеру статьи (например, 136 для "подмена ребенка")

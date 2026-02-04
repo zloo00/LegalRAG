@@ -113,6 +113,10 @@ def _augment_retrieval_query(query: str) -> str:
     extras: list[str] = []
     if any(token in q for token in ("баланы ауыстыру", "ауыстыр", "нәресте", "білезік", "подмена ребенка")):
         extras.append("подмена ребенка статья 136 УК РК")
+    if any(token in q for token in ("субсид", "субсидия", "гос", "государ", "бюджет", "грант", "инвест", "смет", "договор", "фиктив", "жалған", "құжат", "алаяқ", "мемлекеттік", "қаржы", "ақша")):
+        extras.append("алаяқтық 190 УК РК")
+        extras.append("қылмыстық жолмен алынған ақшаны заңдастыру 218 УК РК")
+        extras.append("субсидия алу үшін жалған құжаттар 190 УК РК")
     range_match = _extract_article_range(query)
     if range_match and ("ук" in q or "қылмыстық" in q or "уголов" in q):
         start, end = range_match
@@ -121,15 +125,54 @@ def _augment_retrieval_query(query: str) -> str:
     return (query + " " + " ".join(extras)).strip() if extras else query
 
 
+def _is_criminal_query(query: str) -> bool:
+    q = (query or "").lower()
+    return any(token in q for token in ("қылмыстық", "уголов", "преступ", "ук рк"))
+
+
+def _focus_articles_from_query(query: str) -> set[str]:
+    q = (query or "").lower()
+    focus: set[str] = set()
+    if any(token in q for token in ("субсид", "субсидия", "гос", "государ", "бюджет", "грант", "инвест", "смет", "договор", "фиктив", "мемлекеттік", "жалған", "алаяқ", "құжат", "қаржы", "ақша")):
+        focus.update({"190", "218"})
+    return focus
+
+
+def _is_subsidy_query(query: str) -> bool:
+    q = (query or "").lower()
+    return any(token in q for token in ("субсид", "субсидия", "грант", "гос", "государ", "мемлекеттік", "бюджет"))
+
+
 class _HeuristicRetriever(BaseRetriever):
     """Лёгкий эвристический слой: расширяет запрос и мягко фильтрует диапазоны статей."""
     base_retriever: Any
+    vector_store: Any
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
     ) -> List[Document]:
         search_query = _augment_retrieval_query(query)
         docs = self.base_retriever.invoke(search_query)
+        if _is_criminal_query(query):
+            allowed = set(_uk_variants)
+            filtered = [d for d in docs if (d.metadata.get("code_ru") or "").strip() in allowed]
+            if filtered:
+                docs = filtered
+            else:
+                fallback_docs: list[Document] = []
+                for code_ru in _uk_variants:
+                    try:
+                        fallback_docs.extend(
+                            self.vector_store.similarity_search(
+                                search_query,
+                                k=6,
+                                filter={"code_ru": code_ru},
+                            )
+                        )
+                    except Exception:
+                        continue
+                if fallback_docs:
+                    docs = fallback_docs
         range_match = _extract_article_range(query)
         if range_match:
             start, end = range_match
@@ -139,6 +182,13 @@ class _HeuristicRetriever(BaseRetriever):
                 and start <= int(d.metadata.get("article_number")) <= end
             ]
             return filtered if filtered else docs
+        focus = _focus_articles_from_query(query)
+        if focus:
+            focused = [
+                d for d in docs
+                if (d.metadata.get("article_number") or "").strip() in focus
+            ]
+            return focused if focused else docs
         return docs
 
 
@@ -195,7 +245,9 @@ if _allowed_code_ru_for_filter or _filter_article:
     )
     print("Включён пост-фильтр по кодексу/статье (только разрешённые code_ru/article_number).")
 
-retriever = _HeuristicRetriever(base_retriever=base_retriever)
+# Эвристический слой для запроса/пост-фильтра
+heuristic_retriever = _HeuristicRetriever(base_retriever=base_retriever, vector_store=vector_store)
+retriever = heuristic_retriever
 # ------------------- УЛУЧШЕННЫЙ RERANKER -------------------
 if config.USE_RERANKER:
     try:
@@ -234,7 +286,7 @@ if config.USE_RERANKER:
         if compressor is not None:
             retriever = ContextualCompressionRetriever(
                 base_compressor=compressor,
-                base_retriever=base_retriever,
+                base_retriever=heuristic_retriever,
             )
             print(f"Reranker включён (модель: {used_model}, top_n: {compressor.top_n})")
         else:
@@ -270,6 +322,7 @@ if _llm_backend == "groq":
         groq_api_key=groq_api_key,
         model_name=config.LLM_MODEL,  # например: llama-3.1-70b-versatile
         temperature=config.LLM_TEMPERATURE,
+        max_tokens=config.LLM_MAX_TOKENS,
     )
     print(f"LLM: Groq (model={config.LLM_MODEL})")
 else:
@@ -279,15 +332,18 @@ else:
         model=config.LLM_MODEL,
         temperature=config.LLM_TEMPERATURE,
         base_url=config.OLLAMA_BASE_URL,
+        num_predict=config.LLM_MAX_TOKENS,
     )
     print(f"LLM: Ollama локально (model={config.LLM_MODEL})")
 
 prompt_template = """Ты — точный юридический ассистент по законам РК.
-ОТВЕЧАЙ ИСКЛЮЧИТЕЛЬНО ТЕКСТОМ ИЗ КОНТЕКСТА НИЖЕ.
+ОТВЕЧАЙ СТРОГО НА ОСНОВЕ КОНТЕКСТА НИЖЕ.
 НИКОГДА НЕ ПРИДУМЫВАЙ номера статей, названия, пункты, даты или выводы, которых нет в контексте.
 Если в контексте нет ответа — отвечай ровно одной строкой: "Информация не найдена в доступных текстах законов."
 Если вопрос на казахском — отвечай только на казахском, используя точные формулировки НҚА.
-Для уголовных дел всегда проверяй УК РК и указывай точную статью и санкцию.
+Для уголовных дел проверяй УК РК и указывай точную статью и санкцию ТОЛЬКО если они есть в контексте.
+Случаи подлога/обмана для получения субсидий, грантов, госфинансирования квалифицируй как алаяқтық (ст. 190 УК РК) и при наличии легализации — ст. 218 УК РК. Не применяй ст. 216 УК РК (счета-фактуры) к таким кейсам.
+Разрешён краткий правовой анализ (объект/объективная сторона/субъект/субъективная сторона, смягчающие/отягчающие), но только если есть опора на извлечённые статьи.
 Если в вопросе указан номер статьи — цитируй именно эту статью дословно, без пересказа.
 Если статья содержит список принципов — перечисляй ВСЕ пункты дословно, не сокращай.
 Начинай с: "Это не официальная юридическая консультация. Информация только из базы."
@@ -308,6 +364,51 @@ qa_chain = RetrievalQA.from_chain_type(
     return_source_documents=True,
     chain_type_kwargs={"prompt": PROMPT},
 )
+
+_KZ_CHARS = set("әғқңөұүһі")
+
+
+def _is_kz_query(query: str) -> bool:
+    return any(ch in (query or "").lower() for ch in _KZ_CHARS)
+
+
+def _extract_article_numbers_from_docs(docs: List[Document]) -> set[str]:
+    nums: set[str] = set()
+    for d in docs or []:
+        art = (d.metadata.get("article_number") or "").strip()
+        if art.isdigit():
+            nums.add(art)
+    return nums
+
+
+def _extract_article_numbers_from_text(text: str) -> set[str]:
+    nums: set[str] = set()
+    if not text:
+        return nums
+    for m in re.finditer(r"(?:статья|ст\.|ст|бап)\s*(\d{1,4})", text.lower()):
+        nums.add(m.group(1))
+    return nums
+
+
+def validate_answer(question: str, response: str, sources: List[Document]) -> str:
+    if not sources:
+        return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    if _is_criminal_query(question):
+        has_uk = any((d.metadata.get("code_ru") or "").strip() in _uk_variants for d in sources)
+        if not has_uk:
+            return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    allowed = _extract_article_numbers_from_docs(sources)
+    mentioned = _extract_article_numbers_from_text(response or "")
+    if allowed and mentioned and not mentioned.issubset(allowed):
+        return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    if _is_subsidy_query(question):
+        if "190" not in mentioned and "218" not in mentioned:
+            return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    return response
 
 if __name__ == "__main__":
     question = "Статья 136 УК РК баланы ауыстыру"
