@@ -49,15 +49,20 @@ PINECONE_DIMENSION = 1024  # multilingual-e5-large
 # Эмбеддинги
 EMBEDDING_MODEL = os.environ.get("LEGAL_RAG_EMBEDDING", "intfloat/multilingual-e5-large")
 
-# LLM (Ollama локально)
+# LLM (по умолчанию — Groq, можно переключить на Ollama)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama3.1:70b")
+LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama-3.3-70b-versatile")
 LLM_TEMPERATURE = 0.0
 LLM_MAX_TOKENS = int(os.environ.get("LEGAL_RAG_LLM_MAX_TOKENS", "2048"))
+# Контекст (ограничение длины для предотвращения 413/TPM)
+CONTEXT_MAX_DOCS = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_DOCS", "8"))
+CONTEXT_MAX_CHARS_PER_DOC = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_CHARS_PER_DOC", "1800"))
 
-# Retriever (k=12 — больше шансов вытащить нужные статьи; reranker отрежет лишнее)
-RETRIEVER_TOP_K = 35
+# Retriever (двухэтапный: широкий отбор + rerank)
+RETRIEVER_WIDE_K = 50
+RETRIEVER_TOP_K = 35  # совместимость со старым кодом
 RETRIEVER_TOP_K_AFTER_RERANK = 8
+RETRIEVER_MIN_K_CRIMINAL = 12
 HYBRID_K = 35
 # Опциональные фильтры Pinecone:
 # - по кодексу (например, УК РК)

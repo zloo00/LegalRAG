@@ -8,7 +8,7 @@ Retrieval-augmented generation по кодексам РК: Pinecone, Adilet, 19 
 - **Векторная БД:** **Pinecone** (облако)
 - **Эмбеддинги:** multilingual-e5-large
 - **Retriever:** гибрид BM25 + Pinecone, опционально FlashRank reranker
-- **LLM:** Llama 3.1 8B через Ollama (локально)
+- **LLM:** Groq (Llama 3.3 70B) по умолчанию, можно переключить на Ollama (локально)
 - **UI:** Streamlit, переключатель RU/KZ
 
 ## Документы (19)
@@ -60,9 +60,9 @@ Retrieval-augmented generation по кодексам РК: Pinecone, Adilet, 19 
    python build_vector_db.py
    ```
 
-6. **Ollama (локально):**
+6. **Groq (по умолчанию):**
    ```bash
-   ollama run llama3.1:8b
+   export GROQ_API_KEY="gsk_..."
    ```
 
 7. **Интерфейс:**
@@ -82,12 +82,20 @@ Retrieval-augmented generation по кодексам РК: Pinecone, Adilet, 19 
 - **Тест только по УК РК** (напр. ст. 136 «баланы ауыстыру»):  
   `export LEGAL_RAG_FILTER_CODE_RU="Уголовный кодекс РК"` перед запуском app/benchmark
 
-### Облачный LLM (Groq)
+### Облачный LLM (Groq) — теперь по умолчанию
 
 Чтобы включить “облачный оллама” через Groq:
 
 ```bash
 export LEGAL_RAG_LLM_BACKEND="groq"
 export GROQ_API_KEY="gsk_..."
-export LEGAL_RAG_LLM="llama-3.1-70b-versatile"
+export LEGAL_RAG_LLM="llama-3.3-70b-versatile"
+
+### Локальный LLM (Ollama)
+
+```bash
+export LEGAL_RAG_LLM_BACKEND="ollama"
+export LEGAL_RAG_LLM="llama3.1:8b"
+ollama run llama3.1:8b
+```
 ```

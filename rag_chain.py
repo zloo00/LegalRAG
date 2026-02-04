@@ -38,7 +38,7 @@ vector_store = PineconeVectorStore(
 )
 print(f"Pinecone подключён: {config.PINECONE_INDEX_NAME}")
 
-_hybrid_k = getattr(config, "HYBRID_K", 8)
+_hybrid_k = getattr(config, "RETRIEVER_WIDE_K", getattr(config, "HYBRID_K", 8))
 _vector_kwargs = {"k": _hybrid_k}
 
 # Расширенные фильтры Pinecone:
@@ -71,7 +71,7 @@ if _filter_clauses:
     else:
         _vector_kwargs["filter"] = {"$and": _filter_clauses}
     # При включённых фильтрах немного увеличиваем k для надёжности
-    _vector_kwargs["k"] = min(getattr(config, "HYBRID_K", 8) + 4, 15)
+    _vector_kwargs["k"] = min(getattr(config, "RETRIEVER_WIDE_K", getattr(config, "HYBRID_K", 8)) + 4, 30)
     print(f"Фильтр Pinecone search_kwargs: {_vector_kwargs.get('filter')}")
 
 _vector_retriever = vector_store.as_retriever(search_kwargs=_vector_kwargs)
@@ -117,6 +117,13 @@ def _augment_retrieval_query(query: str) -> str:
         extras.append("алаяқтық 190 УК РК")
         extras.append("қылмыстық жолмен алынған ақшаны заңдастыру 218 УК РК")
         extras.append("субсидия алу үшін жалған құжаттар 190 УК РК")
+    if any(token in q for token in ("заңсыз кәсіпкер", "кәсіпкерлік", "лицензиясыз", "тіркеусіз", "незаконн", "без регистрации", "без лицензии", "салық төлем", "налог", "уклонен")):
+        extras.append("заңсыз кәсіпкерлік 214 УК РК")
+        extras.append("салық төлеуден жалтару 245 УК РК")
+    if any(token in q for token in ("пирамида", "пирамид", "қаржылық пирамида", "инвестиция", "инвест", "жоғары пайда", "30-50%")):
+        extras.append("қаржылық пирамида құру және басқару 217 УК РК")
+        extras.append("финансовая пирамида создание и руководство 217 УК РК")
+        extras.append("реклама финансовой пирамиды 217-1 УК РК")
     range_match = _extract_article_range(query)
     if range_match and ("ук" in q or "қылмыстық" in q or "уголов" in q):
         start, end = range_match
@@ -135,12 +142,49 @@ def _focus_articles_from_query(query: str) -> set[str]:
     focus: set[str] = set()
     if any(token in q for token in ("субсид", "субсидия", "гос", "государ", "бюджет", "грант", "инвест", "смет", "договор", "фиктив", "мемлекеттік", "жалған", "алаяқ", "құжат", "қаржы", "ақша")):
         focus.update({"190", "218"})
+    if any(token in q for token in ("заңсыз кәсіпкер", "кәсіпкерлік", "лицензиясыз", "тіркеусіз", "незаконн", "без регистрации", "без лицензии", "салық төлем", "налог", "уклонен")):
+        focus.update({"214", "245"})
+    if any(token in q for token in ("пирамида", "пирамид", "қаржылық пирамида", "инвестиция", "инвест", "жоғары пайда", "30-50%")):
+        focus.update({"217", "190"})
     return focus
 
 
 def _is_subsidy_query(query: str) -> bool:
     q = (query or "").lower()
     return any(token in q for token in ("субсид", "субсидия", "грант", "гос", "государ", "мемлекеттік", "бюджет"))
+
+
+def _is_illegal_business_query(query: str) -> bool:
+    q = (query or "").lower()
+    return any(token in q for token in ("заңсыз кәсіпкер", "кәсіпкерлік", "лицензиясыз", "тіркеусіз", "незаконн", "без регистрации", "без лицензии", "салық төлем", "налог", "уклонен"))
+
+
+def _is_pyramid_query(query: str) -> bool:
+    q = (query or "").lower()
+    return any(token in q for token in ("пирамида", "пирамид", "қаржылық пирамида", "инвестиция", "инвест", "жоғары пайда", "30-50%"))
+
+
+def _needs_circumstances_query(query: str) -> bool:
+    q = (query or "").lower()
+    return any(token in q for token in ("ауырлататын", "жеңілдететін", "смягча", "отягча"))
+
+
+def _doc_key(doc: Document) -> tuple[str, str]:
+    return (
+        str(doc.metadata.get("source", "")).strip(),
+        str(doc.metadata.get("article_number", "")).strip(),
+    )
+
+
+def _merge_unique(base: List[Document], extra: List[Document]) -> List[Document]:
+    seen = {_doc_key(d) for d in base}
+    merged = list(base)
+    for d in extra:
+        key = _doc_key(d)
+        if key not in seen:
+            merged.append(d)
+            seen.add(key)
+    return merged
 
 
 class _HeuristicRetriever(BaseRetriever):
@@ -153,6 +197,7 @@ class _HeuristicRetriever(BaseRetriever):
     ) -> List[Document]:
         search_query = _augment_retrieval_query(query)
         docs = self.base_retriever.invoke(search_query)
+        uk_filter = {"$or": [{"code_ru": v} for v in _uk_variants]}
         if _is_criminal_query(query):
             allowed = set(_uk_variants)
             filtered = [d for d in docs if (d.metadata.get("code_ru") or "").strip() in allowed]
@@ -190,6 +235,82 @@ class _HeuristicRetriever(BaseRetriever):
             ]
             return focused if focused else docs
         return docs
+
+
+class _LawAwareRetriever(BaseRetriever):
+    """Жёсткий law-aware слой: для УК — принудительная подвыборка + добор статей."""
+    base_retriever: Any
+    vector_store: Any
+    min_k_criminal: int = 10
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
+    ) -> List[Document]:
+        search_query = _augment_retrieval_query(query)
+        docs = self.base_retriever.invoke(search_query)
+        uk_filter = {"$or": [{"code_ru": v} for v in _uk_variants]}
+
+        if _is_criminal_query(query):
+            allowed = set(_uk_variants)
+            filtered = [d for d in docs if (d.metadata.get("code_ru") or "").strip() in allowed]
+            docs = filtered if filtered else docs
+            if len(docs) < self.min_k_criminal:
+                extra: list[Document] = []
+                for code_ru in _uk_variants:
+                    try:
+                        extra.extend(
+                            self.vector_store.similarity_search(
+                                search_query,
+                                k=self.min_k_criminal,
+                                filter={"code_ru": code_ru},
+                            )
+                        )
+                    except Exception:
+                        continue
+                if extra:
+                    docs = _merge_unique(docs, extra)
+
+        if _needs_circumstances_query(query):
+            extra_docs: list[Document] = []
+            for q in (
+                "смягчающие обстоятельства УК РК",
+                "отягчающие обстоятельства УК РК",
+                "жеңілдететін мән-жайлар Қылмыстық кодекс",
+                "ауырлататын мән-жайлар Қылмыстық кодекс",
+            ):
+                try:
+                    extra_docs.extend(
+                        self.vector_store.similarity_search(
+                            q,
+                            k=4,
+                            filter=uk_filter,
+                        )
+                    )
+                except Exception:
+                    continue
+            if extra_docs:
+                docs = _merge_unique(docs, extra_docs)
+
+        return docs
+
+
+class _TrimRetriever(BaseRetriever):
+    """Обрезает количество и длину документов перед LLM, чтобы избежать переполнения контекста."""
+    base_retriever: Any
+    max_docs: int = 8
+    max_chars_per_doc: int = 1800
+
+    def _get_relevant_documents(
+        self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
+    ) -> List[Document]:
+        docs = self.base_retriever.invoke(query)
+        trimmed: list[Document] = []
+        for d in docs[: self.max_docs]:
+            content = d.page_content
+            if len(content) > self.max_chars_per_doc:
+                content = content[: self.max_chars_per_doc] + "\n[...текст обрезан...]"
+            trimmed.append(Document(page_content=content, metadata=d.metadata))
+        return trimmed
 
 
 base_retriever = _vector_retriever
@@ -247,7 +368,13 @@ if _allowed_code_ru_for_filter or _filter_article:
 
 # Эвристический слой для запроса/пост-фильтра
 heuristic_retriever = _HeuristicRetriever(base_retriever=base_retriever, vector_store=vector_store)
-retriever = heuristic_retriever
+# Law-aware слой (для УК и обстоятельств)
+law_aware_retriever = _LawAwareRetriever(
+    base_retriever=heuristic_retriever,
+    vector_store=vector_store,
+    min_k_criminal=getattr(config, "RETRIEVER_MIN_K_CRIMINAL", 10),
+)
+retriever = law_aware_retriever
 # ------------------- УЛУЧШЕННЫЙ RERANKER -------------------
 if config.USE_RERANKER:
     try:
@@ -286,7 +413,7 @@ if config.USE_RERANKER:
         if compressor is not None:
             retriever = ContextualCompressionRetriever(
                 base_compressor=compressor,
-                base_retriever=heuristic_retriever,
+                base_retriever=law_aware_retriever,
             )
             print(f"Reranker включён (модель: {used_model}, top_n: {compressor.top_n})")
         else:
@@ -302,8 +429,15 @@ if config.USE_RERANKER:
 else:
     print("Reranker отключён в config (USE_RERANKER=False)")
 
+# Обрезка контекста перед LLM (для защиты от слишком длинных запросов)
+retriever = _TrimRetriever(
+    base_retriever=retriever,
+    max_docs=getattr(config, "CONTEXT_MAX_DOCS", 8),
+    max_chars_per_doc=getattr(config, "CONTEXT_MAX_CHARS_PER_DOC", 1800),
+)
+
 # Выбор LLM: локальная Ollama или облачный Groq (\"облачный оллама\")
-_llm_backend = os.environ.get("LEGAL_RAG_LLM_BACKEND", "ollama").lower()
+_llm_backend = os.environ.get("LEGAL_RAG_LLM_BACKEND", "groq").lower()
 if _llm_backend == "groq":
     try:
         from langchain_groq import ChatGroq  # type: ignore[import]
@@ -343,7 +477,10 @@ prompt_template = """Ты — точный юридический ассисте
 Если вопрос на казахском — отвечай только на казахском, используя точные формулировки НҚА.
 Для уголовных дел проверяй УК РК и указывай точную статью и санкцию ТОЛЬКО если они есть в контексте.
 Случаи подлога/обмана для получения субсидий, грантов, госфинансирования квалифицируй как алаяқтық (ст. 190 УК РК) и при наличии легализации — ст. 218 УК РК. Не применяй ст. 216 УК РК (счета-фактуры) к таким кейсам.
+Случаи заңсыз кәсіпкерлік (тіркеусіз/лицензиясыз кәсіп, үлкен айналым) — ст. 214 УК РК, салық төлеуден жалтару — ст. 245 УК РК. Не путай с мошенничеством (ст. 190 УК РК).
+Қаржылық пирамида (жаңа салымшылар есебінен төлем, нақты қызмет жоқ, көп жәбірленуші) — ст. 217 УК РК (құру және басқару); ст. 217-1 — ТЕК жарнама үшін. Негізгі бап ретінде 217-1 қолданба.
 Разрешён краткий правовой анализ (объект/объективная сторона/субъект/субъективная сторона, смягчающие/отягчающие), но только если есть опора на извлечённые статьи.
+Ответ оформляй по пунктам 1–5, как в вопросе, с короткими заголовками каждого пункта.
 Если в вопросе указан номер статьи — цитируй именно эту статью дословно, без пересказа.
 Если статья содержит список принципов — перечисляй ВСЕ пункты дословно, не сокращай.
 Начинай с: "Это не официальная юридическая консультация. Информация только из базы."
@@ -366,10 +503,20 @@ qa_chain = RetrievalQA.from_chain_type(
 )
 
 _KZ_CHARS = set("әғқңөұүһі")
+_KZ_COMMON_WORDS = (
+    "және", "бойынша", "қылмыстық", "құрамы", "қылмысқа", "бап", "заң", "мән-жай", "ауырлататын", "жеңілдететін"
+)
 
 
 def _is_kz_query(query: str) -> bool:
     return any(ch in (query or "").lower() for ch in _KZ_CHARS)
+
+
+def _is_kz_response(text: str) -> bool:
+    t = (text or "").lower()
+    if any(ch in t for ch in _KZ_CHARS):
+        return True
+    return any(word in t for word in _KZ_COMMON_WORDS)
 
 
 def _extract_article_numbers_from_docs(docs: List[Document]) -> set[str]:
@@ -394,6 +541,9 @@ def validate_answer(question: str, response: str, sources: List[Document]) -> st
     if not sources:
         return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
 
+    if _is_kz_query(question) and not _is_kz_response(response):
+        return "Ақпарат қолжетімді заң мәтіндерінде табылмады."
+
     if _is_criminal_query(question):
         has_uk = any((d.metadata.get("code_ru") or "").strip() in _uk_variants for d in sources)
         if not has_uk:
@@ -406,6 +556,19 @@ def validate_answer(question: str, response: str, sources: List[Document]) -> st
 
     if _is_subsidy_query(question):
         if "190" not in mentioned and "218" not in mentioned:
+            return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    if _is_illegal_business_query(question):
+        if "214" not in mentioned and "245" not in mentioned:
+            return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    if _is_pyramid_query(question):
+        if "217" not in mentioned:
+            return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
+
+    if _needs_circumstances_query(question):
+        r = (response or "").lower()
+        if not any(token in r for token in ("ауырлататын", "жеңілдететін", "отягча", "смягча")):
             return "Ақпарат қолжетімді заң мәтіндерінде табылмады." if _is_kz_query(question) else "Информация не найдена в доступных текстах законов."
 
     return response
