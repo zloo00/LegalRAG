@@ -7,7 +7,7 @@ from datetime import datetime
 import streamlit as st
 
 import config
-from rag_chain import qa_chain, validate_answer
+from rag_chain import invoke_qa, validate_answer
 
 CHAT_STORE_PATH = "chat_history.json"
 
@@ -220,14 +220,11 @@ if prompt:
 
     with st.spinner("Ищу в текстах законов..." if st.session_state.lang == "ru" else "Заң мәтінінде іздеймін..."):
         try:
-            result = qa_chain.invoke({"query": prompt})
+            result = invoke_qa(prompt)
             response = result["result"]
             sources = result["source_documents"]
             response = validate_answer(prompt, response, sources)
-            if response in (
-                "Информация не найдена в доступных текстах законов.",
-                "Ақпарат қолжетімді заң мәтіндерінде табылмады.",
-            ):
+            if response == "Информация не найдена в доступных текстах законов.":
                 sources = []
         except Exception as e:
             response = f"Ошибка при обработке вопроса: {str(e)}"
