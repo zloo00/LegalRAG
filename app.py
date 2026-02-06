@@ -95,33 +95,82 @@ INFO_SIDEBAR = {
 st.markdown(
     """
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Spectral:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@300;400;600&family=Spectral:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap");
 
-html, body, [class*="stApp"] { font-family: "Source Serif 4", "Spectral", serif; }
+:root {
+  --ink-1: #0b1117;
+  --ink-2: #1f2937;
+  --ink-3: #6b7280;
+  --paper: #f5f0e8;
+  --paper-2: #f8fafc;
+  --accent: #2b6cb0;
+  --accent-2: #0f766e;
+  --accent-soft: rgba(43,108,176,0.12);
+  --border: rgba(15,23,42,0.12);
+}
+
+html, body, [class*="stApp"] { font-family: "Source Serif 4", "Spectral", serif; color: var(--ink-2); }
 .stApp {
-  background: linear-gradient(180deg, #f7f3ee 0%, #f2f4f7 55%, #eef1f5 100%);
+  background:
+    radial-gradient(1200px 600px at 8% -10%, rgba(43,108,176,0.18), transparent 60%),
+    radial-gradient(900px 500px at 92% 0%, rgba(15,118,110,0.16), transparent 55%),
+    linear-gradient(180deg, var(--paper) 0%, var(--paper-2) 100%);
 }
 section[data-testid="stSidebar"] {
-  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+  background:
+    radial-gradient(360px 220px at 10% 0%, rgba(43,108,176,0.35), transparent 55%),
+    linear-gradient(180deg, #0b1220 0%, #0f172a 100%);
+  border-right: 1px solid rgba(148,163,184,0.15);
 }
-section[data-testid="stSidebar"] * {
-  color: #e5e7eb !important;
-}
+section[data-testid="stSidebar"] * { color: #e5e7eb !important; }
+
 .title-bar {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 0.25rem;
+  display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem;
 }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .title-badge {
-  font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase;
-  color: #0f172a; background: #e2e8f0; padding: 6px 10px; border-radius: 999px;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: #0b1220; background: #e2e8f0; padding: 6px 12px; border-radius: 999px;
 }
+.title-sub {
+  color: var(--ink-3); font-size: 0.95rem; margin: 0;
+}
+.meta-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0.25rem; }
+.meta-pill {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.72rem; color: var(--ink-2);
+  background: rgba(15,23,42,0.06); border: 1px solid rgba(15,23,42,0.12);
+  padding: 4px 10px; border-radius: 999px;
+}
+
 .chat-shell {
-  background: rgba(255,255,255,0.75);
-  border: 1px solid rgba(15,23,42,0.12);
-  border-radius: 16px;
-  padding: 12px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+  box-shadow: 0 10px 30px rgba(15,23,42,0.08);
 }
-.stChatMessage {
-  border-radius: 12px;
+.stChatMessage { border-radius: 14px; }
+.stChatMessage[data-testid="stChatMessage"] { border: 1px solid rgba(15,23,42,0.08); }
+.stChatMessage[data-testid="stChatMessage"] p { line-height: 1.5; }
+
+.sources-title {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  margin-top: 0.75rem;
+}
+.sources-item {
+  background: rgba(15,23,42,0.04);
+  border: 1px solid rgba(15,23,42,0.08);
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+@media (max-width: 768px) {
+  .chat-shell { padding: 10px; }
+  .title-row h1 { font-size: 1.6rem; }
 }
 </style>
     """,
@@ -188,10 +237,18 @@ with st.sidebar:
 
 # Заголовок и дисклеймер (на выбранном языке)
 st.markdown(
-    """
+    f"""
 <div class="title-bar">
-  <div class="title-badge">LEGAL RAG</div>
-  <h1>Помощник по законам Республики Казахстан</h1>
+  <div class="title-row">
+    <div class="title-badge">LEGAL RAG</div>
+    <h1>Помощник по законам Республики Казахстан</h1>
+  </div>
+  <p class="title-sub">Строгие ответы только по базе Adilet, с дословными цитатами и источниками.</p>
+  <div class="meta-pills">
+    <div class="meta-pill">Кодексов: 12+</div>
+    <div class="meta-pill">Языки: RU / KZ</div>
+    <div class="meta-pill">Модель: {config.LLM_MODEL}</div>
+  </div>
 </div>
     """,
     unsafe_allow_html=True,
@@ -211,6 +268,7 @@ for message in messages:
 st.markdown("</div>", unsafe_allow_html=True)
 
 # Ввод вопроса
+st.caption("Совет: формулируйте вопрос максимально конкретно и указывайте статьи/диапазоны, если они известны.")
 prompt = st.chat_input(PLACEHOLDERS[st.session_state.lang])
 if prompt:
     messages.append({"role": "user", "content": prompt})
@@ -233,14 +291,19 @@ if prompt:
     with st.chat_message("assistant"):
         st.markdown(response)
         if sources:
-            st.markdown(SOURCES_LABEL[st.session_state.lang])
+            st.markdown(f"<div class=\"sources-title\">{SOURCES_LABEL[st.session_state.lang]}</div>", unsafe_allow_html=True)
             for i, doc in enumerate(sources, 1):
                 src = doc.metadata.get("source", "неизвестно")
                 filename = src.split("/")[-1] if "/" in src else src
                 code_ru = doc.metadata.get("code_ru", "")
                 art = doc.metadata.get("article_number", "")
                 preview = doc.page_content[:280].replace("\n", " ").strip()
-                st.markdown(f"{i}. **{filename}**" + (f" — {code_ru} ст.{art}" if art else "") + f" — {preview}...")
+                st.markdown(
+                    f"<div class=\"sources-item\">{i}. <strong>{filename}</strong>"
+                    + (f" — {code_ru} ст.{art}" if art else "")
+                    + f" — {preview}...</div>",
+                    unsafe_allow_html=True,
+                )
     if sources:
         sources_text = "\n".join([
             f"{j + 1}. {doc.metadata.get('source', '')} — {doc.metadata.get('code_ru', '')} ст.{doc.metadata.get('article_number', '')} — {doc.page_content[:200].replace(chr(10), ' ')}..."
