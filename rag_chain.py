@@ -26,10 +26,32 @@ class PrefixedEmbeddings:
         return self.embeddings.embed_query("query: " + text)
 
 
-embeddings = PrefixedEmbeddings(HuggingFaceEmbeddings(
-    model_name=config.EMBEDDING_MODEL,
-    encode_kwargs={"normalize_embeddings": True}
-))
+def _make_embeddings() -> PrefixedEmbeddings:
+    config.configure_hf_hub()
+    model_kwargs: dict = {}
+    if config.HF_LOCAL_ONLY:
+        model_kwargs["local_files_only"] = True
+    try:
+        return PrefixedEmbeddings(
+            HuggingFaceEmbeddings(
+                model_name=config.EMBEDDING_MODEL,
+                encode_kwargs={"normalize_embeddings": True},
+                model_kwargs=model_kwargs,
+                cache_folder=config.HF_CACHE_DIR,
+            )
+        )
+    except Exception as exc:
+        msg = (
+            "Не удалось загрузить эмбеддинги Hugging Face. "
+            "Проверьте доступ к huggingface.co или скачайте модель заранее. "
+            "Подсказки: увеличьте таймаут через LEGAL_RAG_HF_READ_TIMEOUT_SEC, "
+            "используйте LEGAL_RAG_HF_CACHE_DIR, "
+            "или включите LEGAL_RAG_HF_LOCAL_ONLY=1 после кэширования модели."
+        )
+        raise RuntimeError(msg) from exc
+
+
+embeddings = _make_embeddings()
 
 vector_store = PineconeVectorStore(
     index_name=config.PINECONE_INDEX_NAME,

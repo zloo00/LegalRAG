@@ -48,6 +48,18 @@ PINECONE_DIMENSION = 1024  # multilingual-e5-large
 
 # Эмбеддинги
 EMBEDDING_MODEL = os.environ.get("LEGAL_RAG_EMBEDDING", "intfloat/multilingual-e5-large")
+HF_READ_TIMEOUT_SEC = int(os.environ.get("LEGAL_RAG_HF_READ_TIMEOUT_SEC", os.environ.get("HF_HUB_READ_TIMEOUT", "60")))
+HF_CONNECT_TIMEOUT_SEC = int(os.environ.get("LEGAL_RAG_HF_CONNECT_TIMEOUT_SEC", os.environ.get("HF_HUB_CONNECT_TIMEOUT", "10")))
+HF_OFFLINE = os.environ.get("LEGAL_RAG_HF_OFFLINE", os.environ.get("HF_HUB_OFFLINE", "0")) == "1"
+HF_LOCAL_ONLY = os.environ.get("LEGAL_RAG_HF_LOCAL_ONLY", "0") == "1"
+HF_CACHE_DIR = os.environ.get("LEGAL_RAG_HF_CACHE_DIR", "").strip() or None
+
+
+def configure_hf_hub() -> None:
+    os.environ.setdefault("HF_HUB_READ_TIMEOUT", str(HF_READ_TIMEOUT_SEC))
+    os.environ.setdefault("HF_HUB_CONNECT_TIMEOUT", str(HF_CONNECT_TIMEOUT_SEC))
+    if HF_OFFLINE:
+        os.environ["HF_HUB_OFFLINE"] = "1"
 
 # LLM (по умолчанию — Groq, можно переключить на Ollama)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
