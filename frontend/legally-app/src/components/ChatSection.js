@@ -446,12 +446,31 @@ const ChatSection = () => {
 
                 {message.sources && message.sources.length > 0 && (
                   <SourcesBox>
-                    <Typography variant="subtitle2" color="primary">
+                    <Typography variant="subtitle2" color="primary" sx={{ mb: 1, fontWeight: 'bold' }}>
                       📚 Источники:
                     </Typography>
                     {message.sources.map((source, i) => (
                       <SourceItem key={i}>
-                        <Typography variant="body2">{source}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1a73e8', mb: 0.5 }}>
+                          {source.title || source}
+                        </Typography>
+                        {source.text && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: '#555',
+                              backgroundColor: '#f9f9f9',
+                              p: 1.5,
+                              borderRadius: '8px',
+                              borderLeft: '4px solid #ccd',
+                              fontStyle: 'italic',
+                              mt: 1,
+                              whiteSpace: 'pre-wrap'
+                            }}
+                          >
+                            {source.text}
+                          </Typography>
+                        )}
                       </SourceItem>
                     ))}
                   </SourcesBox>

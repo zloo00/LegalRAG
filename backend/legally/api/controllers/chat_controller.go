@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"legally/models"
 	"legally/services"
 	"legally/utils"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,11 +35,11 @@ type PythonChatResponse struct {
 }
 
 // Structs for the Frontend response (matching what ChatSection.js expects)
-// Frontend expects: { answer: string, mode: string, sources: []string }
+// Frontend expects: { answer: string, mode: string, sources: []SourceDetail }
 type ChatResponse struct {
-	Answer  string   `json:"answer"`
-	Mode    string   `json:"mode"`
-	Sources []string `json:"sources"`
+	Answer  string                `json:"answer"`
+	Mode    string                `json:"mode"`
+	Sources []models.SourceDetail `json:"sources"`
 }
 
 func HandleChat(c *gin.Context) {
@@ -87,15 +89,22 @@ func HandleChat(c *gin.Context) {
 	resp, err := client.Post(pythonAPIURL, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		utils.LogError(fmt.Sprintf("Failed to call Python API: %v", err))
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI service unavailable"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "ИИ-сервис недоступен. Попробуйте позже."})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		utils.LogError(fmt.Sprintf("Python API returned error: %d - %s", resp.StatusCode, string(bodyBytes)))
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "AI service error"})
+		errorMsg := string(bodyBytes)
+		utils.LogError(fmt.Sprintf("Python API returned error: %d - %s", resp.StatusCode, errorMsg))
+		
+		// Map specific internal errors to user-friendly messages
+		if strings.Contains(errorMsg, "Rate limit reached") {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Превышен лимит запросов к ИИ. Пожалуйста, попробуйте через несколько минут."})
+		} else {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Ошибка ИИ-сервиса при обработке вопроса."})
+		}
 		return
 	}
 
@@ -108,20 +117,23 @@ func HandleChat(c *gin.Context) {
 	}
 
 	// Transform to Frontend format
-	sources := make([]string, 0)
+	sources := make([]models.SourceDetail, 0)
 	for _, doc := range pythonResp.SourceDocuments {
 		// Format source string, e.g., "Source Name (Article 123)"
-		sourceStr := ""
+		sourceTitle := ""
 		if src, ok := doc.Metadata["source"].(string); ok {
-			sourceStr += src
+			sourceTitle += src
 		}
 		if art, ok := doc.Metadata["article_number"]; ok {
-			sourceStr += fmt.Sprintf(" (ст. %v)", art)
+			sourceTitle += fmt.Sprintf(" (ст. %v)", art)
 		}
-		if sourceStr == "" {
-			sourceStr = "Unknown Source"
+		if sourceTitle == "" {
+			sourceTitle = "Unknown Source"
 		}
-		sources = append(sources, sourceStr)
+		sources = append(sources, models.SourceDetail{
+			Title: sourceTitle,
+			Text:  doc.PageContent,
+		})
 	}
 
 	// Save AI response

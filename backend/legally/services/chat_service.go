@@ -12,7 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func SaveChatMessage(userID, role, content string, sources []string) error {
+func SaveChatMessage(userID, role, content string, sources []models.SourceDetail) error {
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return fmt.Errorf("invalid user id")
@@ -58,7 +58,11 @@ func ExportChatHistory(userID string) ([]byte, error) {
 	for _, msg := range history {
 		sourcesStr := ""
 		if len(msg.Sources) > 0 {
-			sourcesStr = strings.Join(msg.Sources, "; ")
+			titles := make([]string, len(msg.Sources))
+			for i, s := range msg.Sources {
+				titles[i] = s.Title
+			}
+			sourcesStr = strings.Join(titles, "; ")
 		}
 		
 		roleName := "Пользователь"

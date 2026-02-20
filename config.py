@@ -63,12 +63,12 @@ def configure_hf_hub() -> None:
 
 # LLM (по умолчанию — Groq, можно переключить на Ollama)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama-3.3-70b-versatile")
+LLM_MODEL = os.environ.get("LEGAL_RAG_LLM", "llama-3.1-8b-instant")
 LLM_TEMPERATURE = 0.0
 LLM_MAX_TOKENS = int(os.environ.get("LEGAL_RAG_LLM_MAX_TOKENS", "2048"))
 # Контекст (ограничение длины для предотвращения 413/TPM)
-CONTEXT_MAX_DOCS = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_DOCS", "8"))
-CONTEXT_MAX_CHARS_PER_DOC = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_CHARS_PER_DOC", "1800"))
+CONTEXT_MAX_DOCS = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_DOCS", "5"))
+CONTEXT_MAX_CHARS_PER_DOC = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_CHARS_PER_DOC", "1200"))
 
 # Retriever (двухэтапный: широкий отбор + rerank)
 RETRIEVER_WIDE_K = 20

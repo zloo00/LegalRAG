@@ -84,9 +84,6 @@ func AdminUpdateTask(c *gin.Context) {
 		return
 	}
 
-	// Prevent accidental ID or status changes if needed via manual logic
-	// But as Admin, we generally allow full control
-
 	if err := repositories.UpdateEvaluationTask(objID, updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -138,6 +135,7 @@ func AdminUploadGenerate(c *gin.Context) {
 		return
 	}
 
+	// 2. Wrap into tasks for AI pipeline
 	var tasks []models.EvaluationTask
 	for _, q := range questions {
 		tasks = append(tasks, models.EvaluationTask{
@@ -177,7 +175,9 @@ func AdminUploadReady(c *gin.Context) {
 		excelFile, _ := excelize.OpenReader(openedFile)
 		rows, _ := excelFile.GetRows(excelFile.GetSheetList()[0])
 		for i, row := range rows {
-			if i == 0 { continue } // Header
+			if i == 0 {
+				continue
+			} // Header
 			if len(row) >= 5 {
 				tasks = append(tasks, models.EvaluationTask{
 					ExternalID: row[0],
@@ -218,7 +218,9 @@ func parseUploadFile(c *gin.Context) ([]BatchQuestion, error) {
 		excelFile, _ := excelize.OpenReader(openedFile)
 		rows, _ := excelFile.GetRows(excelFile.GetSheetList()[0])
 		for i, row := range rows {
-			if i == 0 { continue }
+			if i == 0 {
+				continue
+			}
 			if len(row) >= 2 {
 				questions = append(questions, BatchQuestion{ID: row[0], Question: row[1]})
 			}
@@ -303,15 +305,18 @@ func AdminExportResults(c *gin.Context) {
 	// Simple CSV export for now
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", "attachment;filename=results.csv")
-	
+
 	csv := "TaskID,Question,Rating,Decision\n"
 	for _, res := range results {
 		decision := "CHANGE"
-		if res.ConfirmAction { decision = "KEEP" }
+		if res.ConfirmAction {
+			decision = "KEEP"
+		}
 		csv += fmt.Sprintf("%s,%s,%d,%s\n", res.TaskID.Hex(), "...", res.AnswerRating, decision)
 	}
 	c.String(http.StatusOK, csv)
 }
+
 type BatchQuestion struct {
 	ID       string `json:"id"`
 	Question string `json:"question"`
@@ -343,5 +348,3 @@ func fetchEvalDataFromPython(apiURL, query string) (*PythonEvalDataResponse, err
 	}
 	return &data, nil
 }
-/ /   t r i g g e r   c h a n g e  
- 
