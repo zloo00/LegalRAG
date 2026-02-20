@@ -24,23 +24,25 @@ import {
 import { styled } from '@mui/material/styles';
 import { formatFileSize } from '../utils/helpers';
 import { useNavigate } from 'react-router-dom';
+import banner from '../images/banner_legally.jpg';
 
-const FileUploadArea = styled(Box)(({ theme, $dragactive }) => ({
+const FileUploadArea = styled(Box, {
+  shouldForwardProp: (prop) => prop !== '$dragactive',
+})(({ theme, $dragactive }) => ({
   padding: theme.spacing($dragactive ? 4 : 3),
-  border: `2px dashed ${
-    $dragactive ? theme.palette.primary.main : theme.palette.divider
-  }`,
-  borderRadius: theme.shape.borderRadius,
+  border: `2px dashed ${$dragactive ? '#E60000' : '#E5E7EB'}`,
+  borderRadius: '12px',
   backgroundColor: $dragactive
-    ? theme.palette.action.hover
-    : theme.palette.background.paper,
+    ? 'rgba(230, 0, 0, 0.05)'
+    : '#FFFFFF',
   transition: 'all 0.3s ease',
   textAlign: 'center',
   cursor: 'pointer',
   position: 'relative',
   '&:hover': {
-    borderColor: theme.palette.primary.main,
-    backgroundColor: theme.palette.action.hover,
+    borderColor: '#E60000',
+    backgroundColor: 'rgba(230, 0, 0, 0.02)',
+    transform: 'translateY(-2px)'
   },
 }));
 
@@ -62,7 +64,6 @@ function UploadSection({
   onCancelUpload,
   onRemoveFile,
 }) {
-  const theme = useTheme();
   const fileInputRef = useRef(null);
   const [dragActive, setDragActive] = useState(false);
   const [fileError, setFileError] = useState(null);
@@ -125,10 +126,22 @@ function UploadSection({
   return (
     <Fade in timeout={600}>
       <Container maxWidth="md" sx={{ mt: 6, mb: 4 }}>
-        <Paper elevation={2} sx={{ p: 4, borderRadius: 2 }}>
-          <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
+        <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+          <Box
+            component="img"
+            src={banner}
+            alt="Banner"
+            sx={{
+              width: 'calc(100% + 64px)',
+              margin: '-32px -32px 32px -32px',
+              aspectRatio: '16 / 9',
+              objectFit: 'cover'
+            }}
+          />
+          <Typography variant="h4" gutterBottom sx={{ fontWeight: 800, color: '#000000', mt: 3 }}>
             Анализ юридических документов
           </Typography>
+          <Box sx={{ width: 60, height: 4, background: '#E60000', mb: 4 }} />
 
           {(error || fileError) && (
             <Alert
@@ -178,17 +191,17 @@ function UploadSection({
                 <CircularProgress
                   size={60}
                   thickness={4}
-                  sx={{ mb: 2, color: theme.palette.primary.main }}
+                  sx={{ mb: 2, color: '#E60000' }}
                 />
                 <Typography variant="h6">Идет анализ документа...</Typography>
                 <Button
                   variant="outlined"
-                  color="error"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCancelUpload();
+                  sx={{
+                    mt: 2,
+                    color: '#E60000',
+                    borderColor: '#E60000',
+                    '&:hover': { borderColor: '#CC0000', bgcolor: 'rgba(230,0,0,0.05)' }
                   }}
-                  sx={{ mt: 2 }}
                 >
                   Отменить анализ
                 </Button>
@@ -196,7 +209,7 @@ function UploadSection({
             ) : fileInfo ? (
               <>
                 <DescriptionIcon
-                  sx={{ fontSize: 60, color: 'primary.main', mb: 1 }}
+                  sx={{ fontSize: 60, color: '#E60000', mb: 1 }}
                 />
                 <FileInfoBox>
                   <Typography variant="h6" gutterBottom>
@@ -207,13 +220,17 @@ function UploadSection({
                   </Typography>
                   <Button
                     variant="outlined"
-                    color="error"
                     startIcon={<CloseIcon />}
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveFile();
                     }}
-                    sx={{ mt: 2 }}
+                    sx={{
+                      mt: 2,
+                      color: '#E60000',
+                      borderColor: '#E60000',
+                      '&:hover': { borderColor: '#CC0000', bgcolor: 'rgba(230,0,0,0.05)' }
+                    }}
                   >
                     Удалить файл
                   </Button>
@@ -222,7 +239,7 @@ function UploadSection({
             ) : (
               <>
                 <CloudUploadIcon
-                  sx={{ fontSize: 60, color: 'primary.main', mb: 2 }}
+                  sx={{ fontSize: 60, color: '#E60000', mb: 2 }}
                 />
                 <Typography variant="h6" gutterBottom>
                   {dragActive
@@ -250,7 +267,13 @@ function UploadSection({
                 onClick={() => fileInputRef.current.click()}
                 disabled={isLoading}
                 sx={{
-                  backgroundColor: fileInfo ? 'transparent' : undefined,
+                  backgroundColor: fileInfo ? 'transparent' : '#E60000',
+                  color: fileInfo ? '#E60000' : '#FFFFFF',
+                  borderColor: '#E60000',
+                  '&:hover': {
+                    backgroundColor: fileInfo ? 'rgba(230,0,0,0.05)' : '#CC0000',
+                    borderColor: '#E60000'
+                  }
                 }}
               >
                 {fileInfo ? 'Заменить файл' : 'Выбрать файл'}
@@ -263,6 +286,14 @@ function UploadSection({
               startIcon={<HistoryIcon />}
               onClick={() => navigate('/history')}
               disabled={isLoading}
+              sx={{
+                color: '#333333',
+                borderColor: '#333333',
+                '&:hover': {
+                  borderColor: '#000000',
+                  bgcolor: 'rgba(0,0,0,0.05)'
+                }
+              }}
             >
               История проверок
             </Button>
@@ -279,7 +310,7 @@ function UploadSection({
           </Box>
         </Paper>
       </Container>
-    </Fade>
+    </Fade >
   );
 }
 

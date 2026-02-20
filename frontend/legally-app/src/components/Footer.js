@@ -25,7 +25,7 @@ const FooterContainer = styled(Box)(({ theme }) => ({
     left: 0,
     right: 0,
     height: '3px',
-    background: `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+    background: 'linear-gradient(90deg, #E60000, #000000)',
   },
 }));
 

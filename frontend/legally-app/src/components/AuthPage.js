@@ -25,6 +25,7 @@ import {
   VisibilityOff,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
+import logo from '../images/hard_logo_legally.jpg';
 
 const AuthPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(4),
@@ -41,7 +42,7 @@ const AuthPaper = styled(Paper)(({ theme }) => ({
     left: 0,
     right: 0,
     height: 4,
-    background: theme.palette.primary.main,
+    background: '#E60000',
   },
 }));
 
@@ -99,9 +100,28 @@ function AuthPage({ type, onSuccess }) {
     <Fade in timeout={600}>
       <Container maxWidth="sm" sx={{ py: 8 }}>
         <AuthPaper elevation={3}>
-          <Typography variant="h4" align="center" gutterBottom>
-            {type === 'login' ? 'Вход в систему' : 'Регистрация'}
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
+            <Box
+              component="img"
+              src={logo}
+              alt="Legally Logo"
+              sx={{
+                width: 120,
+                height: 120,
+                mb: 2,
+                filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
+                animation: 'fadeInScale 0.8s ease-out',
+                '@keyframes fadeInScale': {
+                  '0%': { opacity: 0, transform: 'scale(0.8)' },
+                  '100%': { opacity: 1, transform: 'scale(1)' }
+                }
+              }}
+            />
+            <Typography variant="h4" align="center" sx={{ fontWeight: 700, color: '#000000' }}>
+              {type === 'login' ? 'Вход в систему' : 'Регистрация'}
+            </Typography>
+            <Box sx={{ width: 40, height: 4, background: '#E60000', mt: 1 }} />
+          </Box>
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -171,9 +191,14 @@ function AuthPage({ type, onSuccess }) {
               type="submit"
               disabled={isLoading}
               startIcon={
-                isLoading ? <CircularProgress size={20} /> : <Person />
+                isLoading ? <CircularProgress size={20} color="inherit" /> : <Person />
               }
-              sx={{ mt: 3 }}
+              sx={{
+                mt: 3,
+                bgcolor: '#E60000',
+                '&:hover': { bgcolor: '#CC0000', transform: 'translateY(-2px)' },
+                transition: 'all 0.3s ease'
+              }}
             >
               {type === 'login' ? 'Войти' : 'Зарегистрироваться'}
             </Button>

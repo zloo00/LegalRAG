@@ -8,12 +8,13 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
+import logo from '../images/simple_logo_legally_square.jpg';
 
 const HeaderBox = styled(Box)(({ theme }) => ({
-  background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-  padding: theme.spacing(8, 0),
-  color: theme.palette.common.white,
-  boxShadow: theme.shadows[4],
+  background: '#000000',
+  padding: theme.spacing(4, 0),
+  color: '#FFFFFF',
+  boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
   position: 'relative',
   overflow: 'hidden',
   '&:before': {
@@ -23,7 +24,7 @@ const HeaderBox = styled(Box)(({ theme }) => ({
     left: 0,
     right: 0,
     height: '4px',
-    background: theme.palette.secondary.main,
+    background: '#E60000',
   },
   '&:after': {
     content: '""',
@@ -72,47 +73,50 @@ function Header() {
               alignItems: 'center',
             }}
           >
-            <Box>
-              <Typography
-                variant={isMobile ? 'h4' : 'h2'}
-                component="h1"
-                gutterBottom
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Box
+                component="img"
+                src={logo}
+                alt="Logo"
                 sx={{
-                  fontWeight: 700,
-                  letterSpacing: '0.03em',
-                  textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                  '&:after': {
-                    content: '""',
-                    display: 'block',
-                    width: '80px',
-                    height: '4px',
-                    background: theme.palette.secondary.light,
-                    marginTop: theme.spacing(3),
-                    [theme.breakpoints.down('sm')]: {
-                      marginTop: theme.spacing(2),
-                      width: '60px',
-                      height: '3px',
-                    },
-                  },
+                  height: isMobile ? 60 : 80,
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(230,0,0,0.3)',
+                  transition: 'transform 0.3s ease',
+                  '&:hover': { transform: 'scale(1.05)' }
                 }}
-              >
-                Legally
-              </Typography>
-              <Typography
-                variant={isMobile ? 'subtitle2' : 'subtitle1'}
-                sx={{
-                  maxWidth: '680px',
-                  lineHeight: 1.6,
-                  opacity: 0.9,
-                  letterSpacing: '0.02em',
-                  textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
-                }}
-              >
-                Профессиональная проверка юридических документов на соответствие
-                законодательству Республики Казахстан с использованием
-                искусственного интеллекта
-              </Typography>
+              />
+              <Box>
+                <Typography
+                  variant={isMobile ? 'h5' : 'h3'}
+                  component="h1"
+                  sx={{
+                    fontWeight: 800,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    color: '#FFFFFF',
+                    mb: 0.5
+                  }}
+                >
+                  Legally
+                </Typography>
+                <Box sx={{ width: '40px', height: '4px', background: '#E60000' }} />
+              </Box>
             </Box>
+            <Typography
+              variant={isMobile ? 'subtitle2' : 'subtitle1'}
+              sx={{
+                maxWidth: '680px',
+                lineHeight: 1.6,
+                opacity: 0.9,
+                letterSpacing: '0.02em',
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+              Профессиональная проверка юридических документов на соответствие
+              законодательству Республики Казахстан с использованием
+              искусственного интеллекта
+            </Typography>
           </Box>
         </Container>
       </HeaderBox>

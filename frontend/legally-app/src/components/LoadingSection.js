@@ -74,8 +74,8 @@ const ScanningLine = styled(Box)(() => ({
   left: 0,
   width: '100%',
   height: '5px',
-  background: 'linear-gradient(to right, #00d2ff, #3a7bd5)',
-  boxShadow: '0 0 12px #3a7bd5',
+  background: 'linear-gradient(to right, transparent, #E60000, transparent)',
+  boxShadow: '0 0 15px rgba(230, 0, 0, 0.8)',
   animation: `${scanLineAnim} 2.5s linear infinite`,
   zIndex: 3,
 }));
@@ -87,15 +87,15 @@ const Stamp = styled(Box)(() => ({
   width: '80px',
   height: '80px',
   borderRadius: '50%',
-  backgroundColor: 'rgba(200, 0, 0, 0.05)',
-  border: '2px dashed rgba(200, 0, 0, 0.5)',
+  backgroundColor: 'rgba(230, 0, 0, 0.05)',
+  border: '2px dashed #E60000',
   transform: 'rotate(-10deg)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '8.5px',
-  color: 'rgba(180, 0, 0, 0.65)',
-  fontWeight: 700,
+  fontSize: '8px',
+  color: '#E60000',
+  fontWeight: 800,
   textAlign: 'center',
   textTransform: 'uppercase',
   letterSpacing: '0.7px',
@@ -176,9 +176,19 @@ function LoadingSection({ onCancel }) {
         </PaperScannerContainer>
         <Button
           variant="outlined"
-          color="error"
           onClick={onCancel}
-          sx={{ mt: 2, textTransform: 'none', fontWeight: 500 }}
+          sx={{
+            mt: 2,
+            textTransform: 'none',
+            fontWeight: 600,
+            color: '#333333',
+            borderColor: '#E5E7EB',
+            '&:hover': {
+              borderColor: '#E60000',
+              color: '#E60000',
+              bgcolor: 'rgba(230,0,0,0.02)'
+            }
+          }}
         >
           Отменить анализ
         </Button>

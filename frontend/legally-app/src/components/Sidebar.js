@@ -10,7 +10,6 @@ import {
     Button,
     IconButton,
     Divider,
-    Drawer,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
@@ -20,40 +19,51 @@ import { styled } from '@mui/material/styles';
 const SidebarContainer = styled(Box)(({ theme }) => ({
     width: '280px',
     height: '100%',
-    backgroundColor: '#1e293b',
-    color: 'white',
+    backgroundColor: '#000000',
+    color: '#FFFFFF',
     display: 'flex',
     flexDirection: 'column',
-    borderRight: '1px solid #334155',
+    borderRight: '1px solid #333333',
 }));
 
 const NewChatButton = styled(Button)(({ theme }) => ({
     margin: '20px',
     padding: '12px',
-    borderRadius: '12px',
-    border: '1px solid #475569',
+    borderRadius: '8px',
+    border: '1px solid #E60000',
+    backgroundColor: '#E60000',
     color: 'white',
     textTransform: 'none',
-    justifyContent: 'flex-start',
+    fontWeight: 600,
+    justifyContent: 'center',
+    transition: 'all 0.3s ease',
     '&:hover': {
-        backgroundColor: '#334155',
-        borderColor: '#64748b',
+        backgroundColor: '#CC0000',
+        borderColor: '#CC0000',
+        transform: 'translateY(-2px)'
     },
 }));
 
-const SessionListItem = styled(ListItem)(({ theme, active }) => ({
+const SessionListItem = styled(ListItem, {
+    shouldForwardProp: (prop) => prop !== 'active',
+})(({ theme, active }) => ({
     padding: '4px 12px',
     '&:hover .delete-btn': {
         opacity: 1,
     },
 }));
 
-const SessionButton = styled(ListItemButton)(({ theme, active }) => ({
-    borderRadius: '8px',
-    backgroundColor: active ? '#334155' : 'transparent',
-    color: active ? 'white' : '#94a3b8',
+const SessionButton = styled(ListItemButton, {
+    shouldForwardProp: (prop) => prop !== 'active',
+})(({ theme, active }) => ({
+    borderRadius: '4px',
+    margin: '2px 8px',
+    backgroundColor: active ? 'rgba(230, 0, 0, 0.1)' : 'transparent',
+    color: active ? '#FFFFFF' : '#9CA3AF',
+    borderLeft: active ? '4px solid #E60000' : '4px solid transparent',
+    transition: 'all 0.2s ease',
     '&:hover': {
-        backgroundColor: '#334155',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         color: 'white',
     },
 }));
@@ -115,10 +125,10 @@ const Sidebar = ({ sessions, activeSessionId, onSelectSession, onNewChat, onDele
                 ))}
             </List>
 
-            <Divider sx={{ borderColor: '#334155' }} />
-            <Box sx={{ p: 2 }}>
-                <Typography variant="caption" sx={{ color: '#64748b' }}>
-                    Legally AI v1.0
+            <Divider sx={{ borderColor: '#333333' }} />
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+                <Typography variant="caption" sx={{ color: '#666666', fontWeight: 600, letterSpacing: '0.1em' }}>
+                    LEGALLY AI v1.0
                 </Typography>
             </Box>
         </SidebarContainer>

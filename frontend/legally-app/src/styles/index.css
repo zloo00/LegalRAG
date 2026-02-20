@@ -1,43 +1,52 @@
 :root {
-  /* Цветовая палитра */
-  --primary-color: #5a67d8;
-  --primary-light: #7f9cf5;
-  --primary-lighter: #ebf4ff;
-  --secondary-color: #805ad5;
-  --secondary-light: #9f7aea;
-  --danger-color: #f56565;
-  --danger-light: #fed7d7;
-  --warning-color: #f6ad55;
-  --warning-light: #feebc8;
-  --success-color: #68d391;
-  --success-light: #c6f6d5;
-  --info-color: #63b3ed;
-  --info-light: #bee3f8;
+  /* Строгая бренд-палитра (Legally) */
+  --brand-red: #E60000;
+  --brand-red-dark: #CC0000;
+  --brand-black: #000000;
+  --brand-white: #FFFFFF;
+  --brand-gray-light: #F3F4F6;
+  --brand-gray-medium: #E5E7EB;
+  --brand-gray-dark: #333333;
+
+  /* Переопределение функциональных переменных */
+  --primary-color: var(--brand-red);
+  --primary-light: var(--brand-red);
+  --primary-lighter: #fff5f5;
+  --secondary-color: var(--brand-black);
+  --secondary-light: var(--brand-gray-dark);
+  --danger-color: var(--brand-red);
+  --danger-light: #fff5f5;
+  --warning-color: #333333;
+  --warning-light: #F3F4F6;
+  --success-color: #000000;
+  --success-light: #F3F4F6;
+  --info-color: #333333;
+  --info-light: #F3F4F6;
 
   /* Текстовые цвета */
-  --text-primary: #2d3748;
-  --text-secondary: #4a5568;
-  --text-muted: #718096;
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --text-muted: #666666;
   --text-on-primary: #ffffff;
 
   /* Фоны */
-  --bg-color: #f7fafc;
-  --bg-alt: #edf2f7;
+  --bg-color: #FFFFFF;
+  --bg-alt: #F3F4F6;
   --card-bg: #ffffff;
-  --sidebar-bg: #2d3748;
+  --sidebar-bg: #000000;
 
   /* Эффекты */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
-  --shadow-primary: 0 4px 12px rgba(90, 103, 216, 0.15);
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  --shadow-primary: 0 4px 12px rgba(230, 0, 0, 0.2);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --radius-full: 9999px;
-  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.3s ease-in-out;
+  --transition-slow: all 0.5s ease-in-out;
 
   /* Типографика */
   --font-main: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -160,22 +169,23 @@ body {
 
 .btn:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(90, 103, 216, 0.3);
+  box-shadow: 0 0 0 3px rgba(230, 0, 0, 0.3);
 }
 
 .btn-primary {
-  background: linear-gradient(
-    135deg,
-    var(--primary-color),
-    var(--secondary-color)
-  );
-  color: var(--text-on-primary);
+  background: var(--brand-red);
+  color: var(--brand-white);
   box-shadow: var(--shadow-primary);
 }
 
 .btn-primary:hover {
+  background: var(--brand-red-dark);
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(90, 103, 216, 0.2);
+  box-shadow: 0 8px 20px rgba(230, 0, 0, 0.3);
+}
+
+.btn-primary:active {
+  transform: scale(0.97);
 }
 
 .btn-outline {
@@ -185,7 +195,7 @@ body {
 }
 
 .btn-outline:hover {
-  background: rgba(90, 103, 216, 0.05);
+  background: rgba(230, 0, 0, 0.05);
 }
 
 .btn-icon {
@@ -196,19 +206,19 @@ body {
 
 /* Загрузка файлов */
 .upload-area {
-  border: 2px dashed rgba(90, 103, 216, 0.2);
+  border: 2px dashed var(--brand-gray-medium);
   border-radius: var(--radius-md);
   padding: 64px 48px;
   text-align: center;
   transition: var(--transition-slow);
   margin-bottom: 24px;
-  background-color: rgba(247, 250, 252, 0.5);
+  background-color: var(--brand-white);
   cursor: pointer;
 }
 
 .upload-area:hover {
-  border-color: var(--primary-color);
-  background-color: rgba(90, 103, 216, 0.03);
+  border-color: var(--brand-red);
+  background-color: rgba(230, 0, 0, 0.02);
   transform: translateY(-2px);
 }
 
@@ -219,7 +229,7 @@ body {
 }
 
 .file-info {
-  background: var(--primary-lighter);
+  background: var(--brand-gray-light);
   border-radius: var(--radius-md);
   padding: 16px 24px;
   margin-top: 24px;
@@ -230,7 +240,7 @@ body {
 }
 
 .file-info:hover {
-  background: rgba(90, 103, 216, 0.1);
+  background: var(--brand-gray-medium);
 }
 
 .file-name {
@@ -299,6 +309,7 @@ body {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -375,18 +386,18 @@ body {
 }
 
 .risk-medium {
-  border-left-color: var(--warning-color);
-  background: linear-gradient(to right, rgba(246, 173, 85, 0.03), transparent);
+  border-left-color: var(--brand-gray-dark);
+  background: linear-gradient(to right, #F3F4F6, transparent);
 }
 
 .risk-low {
-  border-left-color: var(--success-color);
-  background: linear-gradient(to right, rgba(104, 211, 145, 0.03), transparent);
+  border-left-color: var(--brand-black);
+  background: linear-gradient(to right, #F3F4F6, transparent);
 }
 
 .risk-info {
-  border-left-color: var(--info-color);
-  background: linear-gradient(to right, rgba(99, 179, 237, 0.03), transparent);
+  border-left-color: #666666;
+  background: linear-gradient(to right, #F3F4F6, transparent);
 }
 
 .risk-title {
@@ -437,8 +448,8 @@ body {
   align-items: center;
   padding: 4px 12px;
   border-radius: var(--radius-full);
-  background: rgba(90, 103, 216, 0.1);
-  color: var(--primary-color);
+  background: var(--brand-gray-light);
+  color: var(--brand-red);
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -462,25 +473,27 @@ pre:hover {
 
 code {
   font-family: var(--font-mono);
-  background: rgba(90, 103, 216, 0.1);
+  background: var(--brand-gray-light);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-  color: var(--primary-color);
+  color: var(--brand-red);
   font-size: 0.9em;
   transition: var(--transition);
 }
 
 code:hover {
-  background: rgba(90, 103, 216, 0.2);
+  background: var(--brand-gray-medium);
 }
 
 /* Анимации */
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;
     transform: scale(1);
   }
+
   50% {
     opacity: 0.7;
     transform: scale(1.02);
@@ -492,10 +505,12 @@ code:hover {
 }
 
 @keyframes float {
+
   0%,
   100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-6px);
   }

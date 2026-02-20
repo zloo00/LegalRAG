@@ -21,10 +21,9 @@ const md = new MarkdownIt({
   highlight: function (str, lang) {
     if (lang && hljs.getLanguage(lang)) {
       try {
-        return `<pre class="hljs"><code>${
-          hljs.highlight(str, { language: lang }).value
-        }</code></pre>`;
-      } catch (__) {}
+        return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang }).value
+          }</code></pre>`;
+      } catch (__) { }
     }
     return `<pre class="hljs"><code>${md.utils.escapeHtml(str)}</code></pre>`;
   },
@@ -155,27 +154,27 @@ function ResultSection({ data, onBackClick }) {
             boxShadow: 1,
             minHeight: '400px',
             '& .risk-high': {
-              borderLeft: '4px solid #ff1744',
+              borderLeft: '4px solid #E60000',
               paddingLeft: '12px',
-              backgroundColor: '#ffebee',
+              backgroundColor: '#fff5f5',
             },
             '& .risk-medium': {
-              borderLeft: '4px solid #ff9100',
+              borderLeft: '4px solid #666666',
               paddingLeft: '12px',
-              backgroundColor: '#fff3e0',
+              backgroundColor: '#F3F4F6',
             },
             '& .risk-low': {
-              borderLeft: '4px solid #00c853',
+              borderLeft: '4px solid #000000',
               paddingLeft: '12px',
-              backgroundColor: '#e8f5e9',
+              backgroundColor: '#F9FAFB',
             },
             '& .legal-reference': {
-              fontWeight: '500',
-              color: '#1565c0',
+              fontWeight: '600',
+              color: '#CC0000',
             },
             '& .no-risks, & .no-recommendations, & .no-summary': {
               fontStyle: 'italic',
-              color: '#757575',
+              color: '#666666',
             },
           }}
           className="analysis-container"

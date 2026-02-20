@@ -245,28 +245,28 @@ function App() {
             <Button
               startIcon={<HomeIcon />}
               onClick={() => navigate('/')}
-              sx={{ textTransform: 'none' }}
+              sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
             >
               Главная
             </Button>
             <Button
               startIcon={<HistoryIcon />}
               onClick={() => navigate('/history')}
-              sx={{ textTransform: 'none' }}
+              sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
             >
               История
             </Button>
             <Button
               startIcon={<ProfileIcon />}
               onClick={() => navigate('/profile')}
-              sx={{ textTransform: 'none' }}
+              sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
             >
               Профиль
             </Button>
             <Button
               startIcon={<ChatIcon />}
               onClick={() => navigate('/chat')}
-              sx={{ textTransform: 'none' }}
+              sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
             >
               Консультация
             </Button>
@@ -274,7 +274,7 @@ function App() {
               <Button
                 startIcon={<EvalIcon />}
                 onClick={() => navigate('/admin/eval')}
-                sx={{ textTransform: 'none' }}
+                sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
               >
                 HITL Admin
               </Button>
@@ -283,7 +283,7 @@ function App() {
               <Button
                 startIcon={<EvalIcon />}
                 onClick={() => navigate('/reviewer/eval')}
-                sx={{ textTransform: 'none' }}
+                sx={{ textTransform: 'none', color: '#000000', '&:hover': { color: '#E60000' } }}
               >
                 HITL Review
               </Button>
@@ -297,7 +297,7 @@ function App() {
                   sx={{
                     width: 32,
                     height: 32,
-                    bgcolor: 'secondary.main',
+                    bgcolor: '#333333',
                   }}
                 >
                   {appState.userData?.email?.charAt(0).toUpperCase() || 'U'}
@@ -316,9 +316,13 @@ function App() {
             </Button>
             <Button
               variant="outlined"
-              color="error"
               onClick={handleLogout}
-              sx={{ textTransform: 'none' }}
+              sx={{
+                textTransform: 'none',
+                color: '#E60000',
+                borderColor: '#E60000',
+                '&:hover': { borderColor: '#CC0000', backgroundColor: 'rgba(230,0,0,0.05)' }
+              }}
             >
               Выход
             </Button>
@@ -505,6 +509,11 @@ function App() {
                 onClick={() => {
                   confirmModal.onConfirm();
                   closeConfirmModal();
+                }}
+                sx={{
+                  bgcolor: '#E60000',
+                  '&:hover': { bgcolor: '#CC0000' },
+                  textTransform: 'none'
                 }}
               >
                 Подтвердить

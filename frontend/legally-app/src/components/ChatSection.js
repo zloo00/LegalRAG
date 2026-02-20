@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -14,6 +14,7 @@ import ClearIcon from '@mui/icons-material/Clear';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import InfoIcon from '@mui/icons-material/Info';
 import { styled } from '@mui/material/styles';
+import welcomeVideo from '../images/welcome_video_gif_legally.mp4';
 
 const OuterContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -22,7 +23,7 @@ const OuterContainer = styled(Box)(({ theme }) => ({
   minHeight: '100vh',
   width: '100%',
   padding: '20px',
-  backgroundColor: '#f5f7fa',
+  backgroundColor: '#FFFFFF',
 }));
 
 const ChatContainer = styled(Box)(({ theme }) => ({
@@ -38,11 +39,12 @@ const ChatContainer = styled(Box)(({ theme }) => ({
 }));
 
 const Header = styled(Box)(({ theme }) => ({
-  background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
+  background: '#000000',
   color: 'white',
   padding: '20px',
   textAlign: 'center',
   position: 'relative',
+  borderBottom: '4px solid #E60000'
 }));
 
 const StatsBadge = styled(Box)(({ theme }) => ({
@@ -62,12 +64,14 @@ const ChatMessages = styled(Box)(({ theme }) => ({
   flex: 1,
   padding: '20px',
   overflowY: 'auto',
-  backgroundColor: '#f8f9fa',
+  backgroundColor: '#FFFFFF',
   display: 'flex',
   flexDirection: 'column',
 }));
 
-const Message = styled(Box)(({ theme, isUser }) => ({
+const Message = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'isUser',
+})(({ theme, isUser }) => ({
   marginBottom: '20px',
   display: 'flex',
   alignItems: 'flex-start',
@@ -75,33 +79,36 @@ const Message = styled(Box)(({ theme, isUser }) => ({
   width: '100%',
 }));
 
-const MessageAvatar = styled(Avatar)(({ theme, isUser }) => ({
+const MessageAvatar = styled(Avatar, {
+  shouldForwardProp: (prop) => prop !== 'isUser',
+})(({ theme, isUser }) => ({
   width: '40px',
   height: '40px',
   margin: '0 10px',
-  backgroundColor: isUser
-    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    : theme.palette.success.main,
+  backgroundColor: isUser ? '#E60000' : '#000000',
   color: 'white',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
 }));
 
-const MessageContent = styled(Box)(({ theme, isUser }) => ({
+const MessageContent = styled(Box, {
+  shouldForwardProp: (prop) => prop !== 'isUser',
+})(({ theme, isUser }) => ({
   maxWidth: '70%',
   padding: '15px 20px',
   borderRadius: '20px',
   position: 'relative',
   wordWrap: 'break-word',
-  backgroundColor: isUser
-    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    : 'white',
-  color: isUser ? 'white' : theme.palette.text.primary,
-  border: isUser ? 'none' : '1px solid #e9ecef',
-  borderBottomRightRadius: isUser ? '5px' : '20px',
-  borderBottomLeftRadius: isUser ? '20px' : '5px',
-  boxShadow: isUser ? 'none' : '0 2px 10px rgba(0,0,0,0.1)',
-  background: isUser
-    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    : 'white',
+  backgroundColor: isUser ? '#E60000' : '#FFFFFF',
+  color: isUser ? '#FFFFFF' : '#000000',
+  border: isUser ? 'none' : '1px solid #E5E7EB',
+  borderBottomRightRadius: isUser ? '4px' : '20px',
+  borderBottomLeftRadius: isUser ? '20px' : '4px',
+  boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+  animation: 'slideUp 0.3s ease-out',
+  '@keyframes slideUp': {
+    '0%': { transform: 'translateY(10px)', opacity: 0 },
+    '100%': { transform: 'translateY(0)', opacity: 1 }
+  }
 }));
 
 const ModeIndicator = styled(Box)(({ theme, mode }) => ({
@@ -110,10 +117,10 @@ const ModeIndicator = styled(Box)(({ theme, mode }) => ({
   right: '10px',
   background:
     mode === 'legal_rag'
-      ? theme.palette.error.main
+      ? '#E60000'
       : mode === 'general'
-        ? theme.palette.grey[600]
-        : theme.palette.success.main,
+        ? '#333333'
+        : '#000000',
   color: 'white',
   padding: '4px 8px',
   borderRadius: '10px',
@@ -124,7 +131,7 @@ const ModeIndicator = styled(Box)(({ theme, mode }) => ({
 const SourcesBox = styled(Box)(({ theme }) => ({
   marginTop: '10px',
   padding: '10px',
-  background: '#e3f2fd',
+  background: '#F3F4F6',
   borderRadius: '10px',
   fontSize: '12px',
 }));
@@ -134,7 +141,7 @@ const SourceItem = styled(Box)(({ theme }) => ({
   padding: '8px',
   margin: '5px 0',
   borderRadius: '5px',
-  borderLeft: '3px solid #1976d2',
+  borderLeft: '3px solid #E60000',
 }));
 
 const ChatInput = styled(Box)(({ theme }) => ({
@@ -163,16 +170,17 @@ const InputField = styled(TextField)(({ theme }) => ({
 }));
 
 const SendButton = styled(Button)(({ theme }) => ({
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  background: '#E60000',
   color: 'white',
   borderRadius: '25px',
   padding: '15px 25px',
   '&:hover': {
     transform: 'translateY(-2px)',
-    background: 'linear-gradient(135deg, #5a6fd1 0%, #6a4299 100%)',
+    background: '#CC0000',
+    boxShadow: '0 4px 12px rgba(230,0,0,0.3)'
   },
   '&:disabled': {
-    opacity: 0.6,
+    opacity: 0.5,
   },
 }));
 
@@ -218,15 +226,11 @@ const ChatSection = ({
   const [stats, setStats] = useState({ total_vectors: 0 });
   const messagesEndRef = useRef(null);
 
-  const messages = activeSession?.messages || [
-    {
-      content:
-        'Здравствуйте! Я AI-ассистент, специализирующийся на казахстанском законодательстве. Задавайте мне любые вопросы по законам, кодексам и правовым нормам. Я использую RAG систему для поиска актуальной информации в юридических документах.',
-      isUser: false,
-      mode: 'legal_rag',
-      sources: [],
-    },
-  ];
+  const messages = useMemo(() => {
+    return activeSession?.messages || [];
+  }, [activeSession]);
+
+  const isEmpty = messages.length === 0;
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -369,6 +373,41 @@ const ChatSection = ({
         </Header>
 
         <ChatMessages>
+          {isEmpty && (
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                opacity: 0.8
+              }}
+            >
+              <Box
+                component="video"
+                autoPlay
+                loop
+                muted
+                playsInline
+                src={welcomeVideo}
+                sx={{
+                  width: '100%',
+                  maxWidth: 360,
+                  aspectRatio: '16 / 9',
+                  borderRadius: 2,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                  mb: 4
+                }}
+              />
+              <Typography variant="h5" align="center" sx={{ color: '#000000', fontWeight: 600, maxWidth: 600 }}>
+                Добро пожаловать в Legally!
+              </Typography>
+              <Typography align="center" color="text.secondary" sx={{ mt: 2, maxWidth: 500 }}>
+                Задайте любой вопрос по законодательству Казахстана, и я помогу вам найти точные ответы.
+              </Typography>
+            </Box>
+          )}
           {messages.map((message, index) => (
             <Message key={index} isUser={message.isUser}>
               {!message.isUser && (
@@ -394,7 +433,7 @@ const ChatSection = ({
                     </Typography>
                     {message.sources.map((source, i) => (
                       <SourceItem key={i}>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1a73e8', mb: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontWeight: '700', color: '#000000', mb: 0.5 }}>
                           {source.title || (typeof source === 'string' ? source : 'Источник')}
                         </Typography>
                         {source.text && (
@@ -405,7 +444,7 @@ const ChatSection = ({
                               backgroundColor: '#f9f9f9',
                               p: 1.5,
                               borderRadius: '8px',
-                              borderLeft: '4px solid #ccd',
+                              borderLeft: '4px solid #333333',
                               fontStyle: 'italic',
                               mt: 1,
                               whiteSpace: 'pre-wrap'

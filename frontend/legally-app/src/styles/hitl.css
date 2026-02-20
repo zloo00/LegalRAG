@@ -20,7 +20,7 @@
 }
 
 .nav-tab.active {
-    color: #1a73e8;
+    color: #E60000;
 }
 
 .nav-tab.active::after {
@@ -30,7 +30,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: #1a73e8;
+    background: #E60000;
     border-radius: 3px 3px 0 0;
 }
 
@@ -66,9 +66,9 @@
 }
 
 .sub-tab.active {
-    background: #1a73e8;
+    background: #E60000;
     color: white;
-    border-color: #1a73e8;
+    border-color: #E60000;
 }
 
 .format-select {
@@ -80,8 +80,8 @@
 }
 
 .status-parsed {
-    background: #e8f0fe;
-    color: #1967d2;
+    background: #F3F4F6;
+    color: #CC0000;
 }
 
 .admin-header,
@@ -111,14 +111,14 @@
 .spec-card h3 {
     font-size: 0.9rem;
     text-transform: uppercase;
-    color: #5c6bc0;
+    color: #666666;
     margin-bottom: 0.8rem;
     letter-spacing: 0.05em;
 }
 
 .spec-card.highlight {
-    background: #e8eaf6;
-    border-left: 5px solid #3f51b5;
+    background: #F3F4F6;
+    border-left: 5px solid #333333;
 }
 
 .rating-block {
@@ -137,7 +137,7 @@
 }
 
 .score-display {
-    background: #1a237e;
+    background: #000000;
     color: white;
     padding: 4px 12px;
     border-radius: 20px;
@@ -174,18 +174,18 @@
 }
 
 .status-pending {
-    background: #fff3e0;
-    color: #ef6c00;
+    background: #F3F4F6;
+    color: #666666;
 }
 
 .status-assigned {
-    background: #e3f2fd;
+    background: #F3F4F6;
     color: #1565c0;
 }
 
 .status-completed {
     background: #e8f5e9;
-    color: #2e7d32;
+    color: #000000;
 }
 
 .submit-btn {
@@ -233,9 +233,9 @@
 }
 
 .file-label:hover {
-    background: #e8f0fe;
-    border-color: #1a73e8;
-    color: #1a73e8;
+    background: #F3F4F6;
+    border-color: #E60000;
+    color: #E60000;
 }
 
 .divider {
@@ -348,13 +348,13 @@
 }
 
 .role-professor {
-    background: #dcfce7;
-    color: #15803d;
+    background: #F3F4F6;
+    color: #333333;
 }
 
 .role-student {
-    background: #dbeafe;
-    color: #1d4ed8;
+    background: #F3F4F6;
+    color: #E60000;
 }
 
 .role-user {
@@ -373,7 +373,7 @@
 
 .assigned-email {
     font-size: 0.85rem;
-    color: #1a73e8;
+    color: #E60000;
     font-weight: 500;
 }
 
@@ -409,13 +409,13 @@
 }
 
 .pipeline-card.generate {
-    border-color: #e3f2fd;
-    background: linear-gradient(135deg, #ffffff 0%, #f1f8ff 100%);
+    border-color: #F3F4F6;
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
 }
 
 .pipeline-card.ready {
     border-color: #e8f5e9;
-    background: linear-gradient(135deg, #ffffff 0%, #f6fff7 100%);
+    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
 }
 
 .pipeline-card:hover {
@@ -425,7 +425,7 @@
 
 .pipeline-card h3 {
     margin-bottom: 0.5rem;
-    color: #1a237e;
+    color: #000000;
 }
 
 .pipeline-card p {
@@ -443,13 +443,13 @@
 }
 
 .generate button {
-    background: #1a73e8;
+    background: #E60000;
     color: white;
     border: none;
 }
 
 .ready button {
-    background: #2e7d32;
+    background: #000000;
     color: white;
     border: none;
 }
@@ -464,18 +464,18 @@
 }
 
 .status-pill.pending_assignment {
-    background: #fff3e0;
-    color: #ef6c00;
+    background: #F3F4F6;
+    color: #666666;
 }
 
 .status-pill.assigned {
-    background: #e3f2fd;
+    background: #F3F4F6;
     color: #1565c0;
 }
 
 .status-pill.completed {
     background: #e8f5e9;
-    color: #2e7d32;
+    color: #000000;
 }
 
 .status-pill.parsed {
@@ -585,7 +585,7 @@
 .result-card .score {
     font-size: 1.5rem;
     font-weight: 800;
-    color: #1a73e8;
+    color: #E60000;
 }
 
 .result-card .comment {
@@ -604,7 +604,7 @@
 
 .decision-banner.keep {
     background: #c8e6c9;
-    color: #2e7d32;
+    color: #000000;
 }
 
 .decision-banner.change {
@@ -628,6 +628,7 @@
     border: 1px solid #ddd;
     margin: 1rem 0;
 }
+
 /* Pagination & Filtering Styles */
 .table-header {
     display: flex;
@@ -654,7 +655,9 @@
     transition: all 0.2s;
 }
 
-.status-filter:hover { border-color: #1a73e8; }
+.status-filter:hover {
+    border-color: #E60000;
+}
 
 .pagination {
     display: flex;
@@ -678,9 +681,9 @@
 }
 
 .page-btn:hover:not(:disabled) {
-    background: #1a73e8;
+    background: #E60000;
     color: white;
-    border-color: #1a73e8;
+    border-color: #E60000;
 }
 
 .page-btn:disabled {
@@ -705,14 +708,22 @@
 .loading-spinner {
     text-align: center;
     padding: 1rem;
-    color: #1a73e8;
+    color: #E60000;
     font-weight: 600;
     font-style: italic;
     animation: pulse 1.5s infinite ease-in-out;
 }
 
 @keyframes pulse {
-    0% { opacity: 0.6; }
-    50% { opacity: 1; }
-    100% { opacity: 0.6; }
+    0% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.6;
+    }
 }
