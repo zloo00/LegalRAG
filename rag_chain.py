@@ -3,7 +3,8 @@
 import pickle
 import os
 import re
-from typing import Any, List
+from typing import Any, List, Sequence, Optional
+from langchain_core.callbacks import Callbacks
 
 import config
 from langchain_pinecone import PineconeVectorStore
@@ -13,6 +14,28 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+
+try:
+    import nltk
+    from nltk.stem import SnowballStemmer
+    # Download required NLTK data quietly if not present
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
+    try:
+        nltk.data.find('tokenizers/punkt_tab')
+    except LookupError:
+        nltk.download('punkt_tab', quiet=True)
+    
+    _stemmer = SnowballStemmer("russian")
+    
+    def bm25_preprocess_func(text: str) -> List[str]:
+        tokens = nltk.word_tokenize(text.lower())
+        return [_stemmer.stem(t) for t in tokens if t.isalnum()]
+except ImportError:
+    print("NLTK not found. BM25 stemming disabled.")
+    bm25_preprocess_func = None
 
 
 class PrefixedEmbeddings:
@@ -403,10 +426,17 @@ try:
 
     if not _chunks:
         raise ValueError("Нет чанков. Запустите: python build_vector_db.py")
-    bm25_retriever = BM25Retriever.from_documents(_chunks, k=_hybrid_k)
+    
+    # Use preprocessing if available
+    if bm25_preprocess_func:
+        bm25_retriever = BM25Retriever.from_documents(_chunks, preprocess_func=bm25_preprocess_func, k=_hybrid_k)
+        print("BM25 инициализирован со стеммингом (Snowball/Russian).")
+    else:
+        bm25_retriever = BM25Retriever.from_documents(_chunks, k=_hybrid_k)
+
     hybrid_retriever = EnsembleRetriever(
         retrievers=[_vector_retriever, bm25_retriever],
-        weights=[getattr(config, "VECTOR_WEIGHT", 0.75), getattr(config, "BM25_WEIGHT", 0.25)],
+        weights=[0.7, 0.3], # Pinecone favors vector search, BM25 supports exact/stem matches
     )
     base_retriever = hybrid_retriever
     print("Гибридный RAG готов! (BM25 + Pinecone, k=%d)" % _hybrid_k)
@@ -434,55 +464,58 @@ law_aware_retriever = _LawAwareRetriever(
 )
 retriever = law_aware_retriever
 # ------------------- УЛУЧШЕННЫЙ RERANKER -------------------
+# ------------------- УЛУЧШЕННЫЙ RERANKER (BGE-M3) -------------------
 if config.USE_RERANKER:
     try:
-        try:
-            from langchain_community.retrievers import ContextualCompressionRetriever
-        except ImportError:
-            from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
-        from langchain_community.document_compressors import FlashrankRerank
+        from FlagEmbedding import FlagReranker
+        from langchain.retrievers import ContextualCompressionRetriever
+        from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
+        
+        print("Инициализация BAAI/bge-reranker-v2-m3 (это может занять время)...")
+        # Global initialization to avoid reloading per request
+        _reranker_model = FlagReranker('BAAI/bge-reranker-v2-m3', use_fp16=True)
+        print("BGE-M3 Reranker успешно загружен.")
 
-        print("Попытка инициализации FlashRank reranker...")
+        class BGEReranker(BaseDocumentCompressor):
+            top_n: int = 8
+            
+            def compress_documents(
+                self, documents: Sequence[Document], query: str, callbacks: Optional[Callbacks] = None
+            ) -> Sequence[Document]:
+                if not documents:
+                    return []
+                
+                # BGE expects pairs: [query, doc]
+                pairs = [[query, d.page_content] for d in documents]
+                scores = _reranker_model.compute_score(pairs)
+                
+                # If single doc, scores is float; if multiple, list[float]
+                if isinstance(scores, float):
+                    scores = [scores]
+                
+                # Attach scores and sort
+                scored_docs = []
+                for i, doc in enumerate(documents):
+                    doc.metadata["relevance_score"] = scores[i]
+                    scored_docs.append((doc, scores[i]))
+                
+                # Sort descending by score
+                scored_docs.sort(key=lambda x: x[1], reverse=True)
+                
+                # Return top_n
+                return [d for d, s in scored_docs[:self.top_n]]
 
-        # Список моделей по убыванию качества (rank-T5-flan — самая сильная для юридического текста)
-        rerank_model_priority = [
-            "rank-T5-flan",
-            "ms-marco-MiniLM-L-12-v2",
-            "ms-marco-TinyBERT-L-2-v2",
-        ]
-
-        compressor = None
-        used_model = None
-
-        for model_name in rerank_model_priority:
-            try:
-                compressor = FlashrankRerank(
-                    model=model_name,
-                    top_n=config.RETRIEVER_TOP_K_AFTER_RERANK or 6,
-                )
-                used_model = model_name
-                print(f"Успешно запущен FlashRank reranker: {model_name}")
-                break
-            except Exception as exc:
-                print(f"Модель {model_name} не запустилась: {exc}")
-                continue
-
-        if compressor is not None:
-            retriever = ContextualCompressionRetriever(
-                base_compressor=compressor,
-                base_retriever=law_aware_retriever,
-            )
-            print(f"Reranker включён (модель: {used_model}, top_n: {compressor.top_n})")
-        else:
-            print("Ни одна модель FlashRank не запустилась → reranker отключён.")
-
-    except ImportError as ie:
-        print(
-            f"Ошибка импорта: {ie}. Установите langchain-community и flashrank "
-            f"(и при необходимости langchain-classic): pip install langchain-community flashrank langchain-classic"
+        compressor = BGEReranker(top_n=getattr(config, "RETRIEVER_TOP_K_AFTER_RERANK", 8))
+        
+        retriever = ContextualCompressionRetriever(
+            base_compressor=compressor,
+            base_retriever=law_aware_retriever,
         )
+        print(f"Reranker включён (модель: BAAI/bge-reranker-v2-m3, top_n: {compressor.top_n})")
+
     except Exception as e:
-        print(f"Reranker полностью отключён из-за ошибки: {e}")
+        print(f"Reranker BGE-M3 не запустился: {e}. Проверьте установку FlagEmbedding и peft.")
+        print("Используется только retrieval без переранжирования.")
 else:
     print("Reranker отключён в config (USE_RERANKER=False)")
 
