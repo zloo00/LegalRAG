@@ -1,0 +1,83 @@
+package services
+
+import (
+	"bytes"
+	"encoding/csv"
+	"fmt"
+	"legally/models"
+	"legally/repositories"
+	"strings"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+func SaveChatMessage(userID, role, content string, sources []string) error {
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return fmt.Errorf("invalid user id")
+	}
+
+	msg := models.ChatMessage{
+		UserID:    objID,
+		Role:      role,
+		Content:   content,
+		Sources:   sources,
+		CreatedAt: time.Now(),
+	}
+
+	return repositories.SaveChatMessage(msg)
+}
+
+func GetChatHistory(userID string) ([]models.ChatMessage, error) {
+	return repositories.GetChatHistory(userID)
+}
+
+func ClearChatHistory(userID string) error {
+	return repositories.ClearChatHistory(userID)
+}
+
+func ExportChatHistory(userID string) ([]byte, error) {
+	history, err := repositories.GetChatHistory(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	// Write BOM for Excel compatibility with UTF-8
+	buf.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	writer := csv.NewWriter(&buf)
+	
+	// Create header
+	header := []string{"Дата", "Роль", "Сообщение", "Источники"}
+	if err := writer.Write(header); err != nil {
+		return nil, err
+	}
+
+	for _, msg := range history {
+		sourcesStr := ""
+		if len(msg.Sources) > 0 {
+			sourcesStr = strings.Join(msg.Sources, "; ")
+		}
+		
+		roleName := "Пользователь"
+		if msg.Role == "assistant" {
+			roleName = "AI Ассистент"
+		}
+
+		record := []string{
+			msg.CreatedAt.Format("2006-01-02 15:04:05"),
+			roleName,
+			msg.Content,
+			sourcesStr,
+		}
+		
+		if err := writer.Write(record); err != nil {
+			return nil, err
+		}
+	}
+	
+	writer.Flush()
+	return buf.Bytes(), nil
+}
