@@ -13,6 +13,12 @@ class SourceDocument(BaseModel):
     page_content: str
     metadata: dict
 
+class AnalysisRequest(BaseModel):
+    text: str
+
+class AnalysisResponse(BaseModel):
+    result: str
+
 class ChatResponse(BaseModel):
     result: str
     source_documents: List[dict]
@@ -60,6 +66,16 @@ async def chat(request: ChatRequest):
         )
     except Exception as e:
         print(f"Error processing request: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/analyze", response_model=AnalysisResponse)
+async def analyze(request: AnalysisRequest):
+    try:
+        # Call the analysis function from rag_chain
+        result = rag_chain.analyze_text(request.text)
+        return AnalysisResponse(result=result)
+    except Exception as e:
+        print(f"Error during analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/stats")

@@ -784,6 +784,43 @@ def _extract_article_numbers_from_text(text: str) -> set[str]:
     return nums
 
 
+
+ANALYSIS_PROMPT_TEMPLATE = """Ты — юридический эксперт по законодательству Казахстана. Твоя задача — проанализировать текст документа (или его часть) и выявить правовые риски, нарушения и дать рекомендации.
+
+В ответе придерживайся следующей структуры:
+
+### Правовые риски
+1. [Название риска]
+   - Описание: [подробное описание]
+   - Нормативный акт: [закон/статья]
+   - Уровень риска: [высокий/средний/низкий]
+   - Рекомендация: [предложение по исправлению]
+
+### Неясные формулировки
+1. [Формулировка]
+   - Проблема: [в чем неясность]
+   - Рекомендация: [как переформулировать]
+   - Уровень важности: [высокий/средний/низкий]
+
+### Возможные нарушения
+1. [Описание нарушения]
+   - Нормативный акт: [закон/статья]
+   - Последствия: [возможные санкции]
+   - Рекомендация: [как избежать]
+
+### Рекомендации
+[Список конкретных рекомендаций по исправлению документа]
+
+### Заключение
+[Общая сводка по документу с выводами]
+
+Документ:
+{text}
+
+Ответ:"""
+
+ANALYSIS_PROMPT = PromptTemplate.from_template(ANALYSIS_PROMPT_TEMPLATE)
+
 def validate_answer(question: str, response: str, sources: List[Document]) -> str:
     fallback = "Информация не найдена в доступных текстах законов."
     if not sources:
@@ -820,6 +857,13 @@ def validate_answer(question: str, response: str, sources: List[Document]) -> st
             return fallback
 
     return response
+
+def analyze_text(text: str) -> str:
+    """Analyses the provided text using the configured LLM."""
+    chain = ANALYSIS_PROMPT | llm
+    result = chain.invoke({"text": text})
+    # Extract content string if it's an AIMessage
+    return result.content if hasattr(result, "content") else str(result)
 
 if __name__ == "__main__":
     question = "Статья 136 УК РК баланы ауыстыру"
