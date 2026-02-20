@@ -108,5 +108,28 @@ async def get_stats():
         print(f"Error fetching stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/v1/generate-eval-data")
+async def generate_eval_data(request: ChatRequest):
+    try:
+        # We reuse ChatRequest (query: str) for simpler reuse
+        response = rag_chain.invoke_qa(request.query)
+        
+        result = response.get("result", "")
+        chunks = [doc.page_content for doc in response.get("source_documents", [])]
+        articles = []
+        for doc in response.get("source_documents", []):
+            code = doc.metadata.get("code_ru", "Неизвестно")
+            article = doc.metadata.get("article_number", "")
+            articles.append(f"{code} ст.{article}" if article else code)
+
+        return {
+            "answer": result,
+            "chunks": chunks,
+            "articles": articles
+        }
+    except Exception as e:
+        print(f"Error generating eval data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
