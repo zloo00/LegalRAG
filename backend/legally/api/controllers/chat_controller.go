@@ -15,12 +15,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type HistoryMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
 type ChatRequest struct {
-	Message string `json:"message" binding:"required"`
+	Message string           `json:"message" binding:"required"`
+	History []HistoryMessage `json:"history"`
 }
 
 type PythonChatRequest struct {
-	Query string `json:"query"`
+	Query   string           `json:"query"`
+	History []HistoryMessage `json:"history"`
 }
 
 // Structs to match the Python API response
@@ -69,7 +76,8 @@ func HandleChat(c *gin.Context) {
 
 	// Prepare request to Python API
 	pythonPayload := PythonChatRequest{
-		Query: req.Message,
+		Query:   req.Message,
+		History: req.History,
 	}
 	jsonData, err := json.Marshal(pythonPayload)
 	if err != nil {

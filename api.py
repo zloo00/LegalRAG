@@ -8,6 +8,7 @@ app = FastAPI(title="Legally RAG API", version="1.0")
 
 class ChatRequest(BaseModel):
     query: str
+    history: Optional[List[dict]] = []
 
 class SourceDocument(BaseModel):
     page_content: str
@@ -42,7 +43,7 @@ def convert_numpy_types(obj):
 async def chat(request: ChatRequest):
     try:
         # Invoke the RAG chain
-        response = rag_chain.invoke_qa(request.query)
+        response = rag_chain.invoke_qa(request.query, history=request.history)
         
         # Format the response
         result = response.get("result", "")

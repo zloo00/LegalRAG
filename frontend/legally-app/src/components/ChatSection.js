@@ -206,8 +206,19 @@ const TypingIndicator = styled(Box)(({ theme }) => ({
   gap: '10px',
 }));
 
-const ChatSection = () => {
-  const [messages, setMessages] = useState([
+const ChatSection = ({
+  activeSession,
+  addMessageToSession,
+  onClearHistory,
+  onExportChat
+}) => {
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [error, setError] = useState(null);
+  const [stats, setStats] = useState({ total_vectors: 0 });
+  const messagesEndRef = useRef(null);
+
+  const messages = activeSession?.messages || [
     {
       content:
         'Здравствуйте! Я AI-ассистент, специализирующийся на казахстанском законодательстве. Задавайте мне любые вопросы по законам, кодексам и правовым нормам. Я использую RAG систему для поиска актуальной информации в юридических документах.',
@@ -215,12 +226,7 @@ const ChatSection = () => {
       mode: 'legal_rag',
       sources: [],
     },
-  ]);
-  const [input, setInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [error, setError] = useState(null);
-  const [stats, setStats] = useState({ total_vectors: 0 });
-  const messagesEndRef = useRef(null);
+  ];
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -231,44 +237,20 @@ const ChatSection = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Load history and stats on mount
+  // Load stats on mount
   useEffect(() => {
-    const fetchData = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
+    const fetchStats = async () => {
       try {
-        // Fetch Stats
         const statsRes = await fetch('http://localhost:8080/api/stats');
         if (statsRes.ok) {
           const statsData = await statsRes.json();
           setStats(statsData);
         }
-        // Fetch Chat History
-        const historyRes = await fetch('http://localhost:8080/api/chat/history', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
-        if (historyRes.ok) {
-          const historyData = await historyRes.json();
-          if (Array.isArray(historyData)) {
-            const formattedHistory = historyData.map(msg => ({
-              content: msg.content,
-              isUser: msg.role === 'user',
-              mode: 'legal_rag',
-              sources: msg.sources || []
-            }));
-            if (formattedHistory.length > 0) {
-              setMessages(formattedHistory);
-            }
-          }
-        }
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error('Error fetching stats:', err);
       }
     };
-
-    fetchData();
+    fetchStats();
   }, []);
 
   const handleInputChange = (e) => {
@@ -284,10 +266,12 @@ const ChatSection = () => {
 
   const sendMessage = async () => {
     const message = input.trim();
-    if (!message || isTyping) return;
+    if (!message || isTyping || !activeSession) return;
 
-    // Add user message to chat
-    setMessages((prev) => [...prev, { content: message, isUser: true }]);
+    // Add user message to session
+    const userMsg = { content: message, isUser: true };
+    addMessageToSession(activeSession.id, userMsg);
+
     setInput('');
     setIsTyping(true);
     setError(null);
@@ -298,13 +282,25 @@ const ChatSection = () => {
         throw new Error('Требуется авторизация. Пожалуйста, войдите в систему.');
       }
 
+      // Prepare context window (last 15 messages)
+      const contextWindow = messages
+        .filter(m => m.mode !== 'system') // Filter out initial welcome if needed
+        .slice(-15)
+        .map(m => ({
+          role: m.isUser ? 'user' : 'assistant',
+          content: m.content
+        }));
+
       const response = await fetch('http://localhost:8080/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({
+          message,
+          history: contextWindow
+        }),
       });
 
       if (response.status === 401) {
@@ -312,102 +308,49 @@ const ChatSection = () => {
       }
 
       if (!response.ok) {
-        throw new Error('Ошибка при обработке запроса');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Ошибка при обработке запроса');
       }
 
       const data = await response.json();
 
-      // Add AI response to chat
-      setMessages((prev) => [
-        ...prev,
-        {
-          content: data.answer,
-          isUser: false,
-          mode: data.mode,
-          sources: data.sources || [],
-        },
-      ]);
+      // Add AI response to session
+      const aiMsg = {
+        content: data.answer,
+        isUser: false,
+        mode: data.mode,
+        sources: data.sources || [],
+      };
+      addMessageToSession(activeSession.id, aiMsg);
+
     } catch (err) {
       setError(err.message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          content: 'Извините, произошла ошибка: ' + err.message,
-          isUser: false,
-        },
-      ]);
+      const errMsg = {
+        content: 'Извините, произошла ошибка: ' + err.message,
+        isUser: false,
+      };
+      addMessageToSession(activeSession.id, errMsg);
     } finally {
       setIsTyping(false);
     }
   };
 
-  const clearHistory = async () => {
-    if (!window.confirm('Вы уверены, что хотите очистить историю разговора?'))
-      return;
-
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch('http://localhost:8080/api/chat/history', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setMessages([
-          {
-            content: 'История разговора очищена. Задавайте новые вопросы!',
-            isUser: false,
-            mode: 'legal_rag',
-            sources: []
-          },
-        ]);
-      } else {
-        throw new Error('Failed to clear');
-      }
-    } catch (err) {
-      setError('Ошибка при очистке истории');
-    }
-  };
-
-  const exportChat = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch('http://localhost:8080/api/chat/export', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `legal_chat_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-      } else {
-        throw new Error('Export failed');
-      }
-    } catch (err) {
-      setError('Ошибка при экспорте чата');
-    }
-  };
-
-  const showStats = async () => {
-    try {
-      const response = await fetch('/stats');
-      const stats = await response.json();
-
-      if (response.ok) {
-        alert(`📊 Статистика системы:
+  const showStats = () => {
+    alert(`📊 Статистика системы:
 • Векторов в индексе: ${stats.total_vectors}
-• Размерность: ${stats.index_dimension}
-• История разговора: ${stats.conversation_history_length}
-• Модели: ${stats.models?.embedding || 'N/A'}`);
-      }
-    } catch (err) {
-      setError('Ошибка при получении статистики');
-    }
+• Модели: ${stats.models?.embedding || 'N/A'}
+• Reranker: ${stats.models?.reranker || 'N/A'}`);
   };
+
+  if (!activeSession) {
+    return (
+      <OuterContainer>
+        <Typography variant="h6" color="text.secondary">
+          Выберите чат в боковой панели или создайте новый
+        </Typography>
+      </OuterContainer>
+    );
+  }
 
   return (
     <OuterContainer>
@@ -416,8 +359,8 @@ const ChatSection = () => {
           <Typography variant="h5" component="h1">
             🤖 Юридический AI-ассистент
           </Typography>
-          <Typography variant="body2">
-            Задавайте вопросы по казахстанскому законодательству
+          <Typography variant="body1" sx={{ mt: 0.5, opacity: 0.9 }}>
+            {activeSession.title}
           </Typography>
           <StatsBadge>
             <InfoIcon fontSize="small" />
@@ -452,7 +395,7 @@ const ChatSection = () => {
                     {message.sources.map((source, i) => (
                       <SourceItem key={i}>
                         <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#1a73e8', mb: 0.5 }}>
-                          {source.title || source}
+                          {source.title || (typeof source === 'string' ? source : 'Источник')}
                         </Typography>
                         {source.text && (
                           <Typography
@@ -526,12 +469,12 @@ const ChatSection = () => {
           </InputContainer>
 
           <Controls>
-            <ControlButton startIcon={<ClearIcon />} onClick={clearHistory}>
+            <ControlButton startIcon={<ClearIcon />} onClick={() => onClearHistory(activeSession.id)}>
               Очистить историю
             </ControlButton>
             <ControlButton
               startIcon={<FileDownloadIcon />}
-              onClick={exportChat}
+              onClick={() => onExportChat(activeSession)}
             >
               Экспорт чата
             </ControlButton>

@@ -29,6 +29,8 @@ import {
   VerifiedUser as EvalIcon,
 } from '@mui/icons-material';
 import { Box, Typography, Button, Modal, Fade, Avatar } from '@mui/material';
+import Sidebar from './components/Sidebar';
+import { useChatHistory } from './hooks/useChatHistory';
 import './styles/index.css';
 import './styles/hitl.css';
 
@@ -43,6 +45,7 @@ function AppWrapper() {
 function App() {
   const navigate = useNavigate();
   const abortControllerRef = useRef(null);
+  const chatHistory = useChatHistory();
   const [appState, setAppState] = useState({
     isLoading: false,
     fileInfo: null,
@@ -367,7 +370,39 @@ function App() {
             path="/chat"
             element={
               <ProtectedRoute isAuthenticated={appState.isAuthenticated}>
-                <ChatSection />
+                <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)', overflow: 'hidden' }}>
+                  <Sidebar
+                    sessions={chatHistory.sessions}
+                    activeSessionId={chatHistory.activeSessionId}
+                    onSelectSession={chatHistory.setActiveSessionId}
+                    onNewChat={chatHistory.createNewSession}
+                    onDeleteSession={chatHistory.deleteSession}
+                  />
+                  <Box sx={{ flex: 1, height: '100%', overflow: 'hidden' }}>
+                    <ChatSection
+                      activeSession={chatHistory.activeSession}
+                      addMessageToSession={chatHistory.addMessageToSession}
+                      onClearHistory={(sessionId) => {
+                        if (window.confirm('Очистить историю этого чата?')) {
+                          chatHistory.addMessageToSession(sessionId, {
+                            content: 'История очищена!',
+                            isUser: false,
+                            mode: 'legal_rag'
+                          });
+                        }
+                      }}
+                      onExportChat={(session) => {
+                        const csvContent = "data:text/csv;charset=utf-8,Role,Message\n"
+                          + session.messages.map(m => `${m.isUser ? 'User' : 'Assistant'},"${m.content.replace(/"/g, '""')}"`).join("\n");
+                        const link = document.createElement("a");
+                        link.setAttribute("href", encodeURI(csvContent));
+                        link.setAttribute("download", `chat_${session.title}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                      }}
+                    />
+                  </Box>
+                </Box>
               </ProtectedRoute>
             }
           />

@@ -615,6 +615,7 @@ UNIVERSAL_PROMPT_TEMPLATE = """Ты — точный юридический ас
    "Санкция / освобождение / смягчение в контексте не указаны."
 7. Если вопрос касается нескольких сфер — ищи и указывай нормы из каждого релевантного кодекса (например, УК + КоАП).
 
+{chat_history}
 Контекст (с источниками, номерами статей и кодексами):
 {context}
 
@@ -640,6 +641,7 @@ CRIMINAL_PROMPT_TEMPLATE = """Ты — эксперт по Уголовному 
 6. Ауырлататын және жеңілдететін мән-жайлар — ТОЛЬКО если они указаны в статье или в контексте.
 7. Санкцию цитируй дословно, включая часть статьи.
 
+{chat_history}
 Контекст:
 {context}
 
@@ -659,6 +661,7 @@ RANGE_PROMPT_TEMPLATE = """Ты — точный ассистент по УК Р
 • Цитируй санкции и ключевые части дословно.
 • Указывай источник (название кодекса) и номер статьи.
 
+{chat_history}
 Контекст:
 {context}
 
@@ -728,7 +731,7 @@ _QA_CHAINS = {
 qa_chain = _QA_CHAINS["universal"]
 
 
-def invoke_qa(query: str) -> dict:
+def invoke_qa(query: str, history: Optional[List[dict]] = None) -> dict:
     prompt = _select_prompt(query)
     if prompt is RANGE_PROMPT:
         chain = _QA_CHAINS["range"]
@@ -737,13 +740,21 @@ def invoke_qa(query: str) -> dict:
     else:
         chain = _QA_CHAINS["universal"]
     
-    # LCEL expects "input" for the question, but our prompts use "question" and "context"
-    # create_retrieval_chain passes "input" to retriever, and "input" + "context" to the doc chain.
-    # We need to map "query" -> "input"
-    res = chain.invoke({"input": query})
+    # Format chat history for the prompt
+    history_str = ""
+    if history:
+        history_str = "История предыдущих сообщений:\n"
+        for msg in history:
+            role = "Пользователь" if msg.get("role") == "user" else "Ассистент"
+            history_str += f"{role}: {msg.get('content')}\n"
+        history_str += "\n"
+
+    # LCEL expects "input" for the question
+    res = chain.invoke({
+        "input": query,
+        "chat_history": history_str
+    })
     
-    # Map LCEL output back to legacy format expected by app.py ("result", "source_documents")
-    # LCEL returns "answer" and "context" (list of docs)
     return {
         "result": res.get("answer", ""),
         "source_documents": res.get("context", [])
