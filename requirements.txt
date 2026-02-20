@@ -45,3 +45,6 @@ nltk>=3.8.0
 
 # Опционально: Jina embeddings (SOTA для казахского, нужен API key)
 # jina>=0.2.0
+# API
+fastapi>=0.100.0
+uvicorn>=0.20.0

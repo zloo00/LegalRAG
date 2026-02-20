@@ -341,8 +341,26 @@ class _TrimRetriever(BaseRetriever):
     max_chars_per_doc: int = 1800
 
     def _get_relevant_documents(
-        self, query: str, *, run_manager: CallbackManagerForRetrieverRun | None = None
+        self, query: str | dict, *, run_manager: CallbackManagerForRetrieverRun | None = None
     ) -> List[Document]:
+        if isinstance(query, dict):
+            # If we receive a dict (e.g. from LCEL chain), extract the query string
+            # Try common keys
+            q = query.get("input") or query.get("query") or query.get("question") or ""
+            if not q and "context" not in query: # If it's not a doc chain input
+                 print(f"DEBUG: _TrimRetriever received dict without known keys: {query.keys()}")
+            
+            # If the dict is just {"input": "..."} which is typical for create_retrieval_chain
+            if q:
+                query = q
+            else:
+                # Fallback: convert to string representation if needed or just empty
+                 pass 
+        
+        # Ensure query is string for base_retriever
+        if not isinstance(query, str):
+             query = str(query)
+
         docs = self.base_retriever.invoke(query)
         trimmed: list[Document] = []
         for d in docs[: self.max_docs]:
@@ -529,7 +547,8 @@ UNIVERSAL_PROMPT_TEMPLATE = """Ты — точный юридический ас
 
 ОТВЕЧАЙ ИСКЛЮЧИТЕЛЬНО на основе предоставленного ниже контекста.
 НИКОГДА НЕ ПРИДУМЫВАЙ номера статей, названия законов, даты, санкции, выводы или факты, которых нет в контексте.
-Если в контексте нет ответа или информации недостаточно — отвечай ровно одной строкой:
+Если в контексте есть релевантные статьи, используй их для ответа.
+Если в контексте СОВСЕМ нет релевантной информации — отвечай ровно одной строкой:
 "Информация не найдена в доступных текстах законов."
 
 Строгие правила ответа, учитывающие все сферы жизни:
@@ -632,10 +651,39 @@ def _select_prompt(question: str) -> PromptTemplate:
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
+from langchain_core.runnables import RunnablePassthrough
+
+def _fill_missing_metadata(docs):
+    # docs is a list of Document objects coming from the retriever
+    # We must return the list of docs
+    if not isinstance(docs, list):
+         # If for some reason we get a dict (e.g. from a weird chain state), return it to avoid crashing, 
+         # but this shouldn't happen if the chain is correct.
+         return docs
+         
+    for d in docs:
+        if "article_number" not in d.metadata:
+            d.metadata["article_number"] = "Н/Д"
+        if "code_ru" not in d.metadata:
+            d.metadata["code_ru"] = "Неизвестный источник"
+        if "source" not in d.metadata:
+            d.metadata["source"] = "Неизвестно"
+    return docs
+
 def _make_qa_chain(prompt: PromptTemplate) -> Any:
+    # Define a prompt to format each document including metadata
+    document_prompt = PromptTemplate(
+        input_variables=["page_content", "source", "article_number", "code_ru"],
+        template="Источник: {source}\nКодекс: {code_ru}\nСтатья: {article_number}\nТекст: {page_content}"
+    )
+
     # LCEL pipeline: Retriever -> Document Chain -> Retrieval Chain
-    question_answer_chain = create_stuff_documents_chain(llm, prompt)
-    return create_retrieval_chain(retriever, question_answer_chain)
+    question_answer_chain = create_stuff_documents_chain(llm, prompt, document_prompt=document_prompt)
+    
+    # Wrap retriever to ensure metadata exists before docs hit the document chain
+    retriever_with_safeguard = retriever | _fill_missing_metadata
+    
+    return create_retrieval_chain(retriever_with_safeguard, question_answer_chain)
 
 
 _QA_CHAINS = {

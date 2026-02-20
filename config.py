@@ -71,11 +71,11 @@ CONTEXT_MAX_DOCS = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_DOCS", "8"))
 CONTEXT_MAX_CHARS_PER_DOC = int(os.environ.get("LEGAL_RAG_CONTEXT_MAX_CHARS_PER_DOC", "1800"))
 
 # Retriever (двухэтапный: широкий отбор + rerank)
-RETRIEVER_WIDE_K = 50
-RETRIEVER_TOP_K = 35  # совместимость со старым кодом
+RETRIEVER_WIDE_K = 20
+RETRIEVER_TOP_K = 20  # совместимость со старым кодом
 RETRIEVER_TOP_K_AFTER_RERANK = 8
 RETRIEVER_MIN_K_CRIMINAL = 12
-HYBRID_K = 35
+HYBRID_K = 20
 # Опциональные фильтры Pinecone:
 # - по кодексу (например, УК РК)
 # - по номеру статьи (например, 136 для "подмена ребенка")
