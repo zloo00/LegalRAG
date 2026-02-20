@@ -97,14 +97,16 @@ vector_store = PineconeVectorStore(
     namespace=namespace
 )
 
+import json
+
 # Pinecone limit: 40 KB на метаданные одного вектора.
 # langchain_pinecone при add_documents добавляет в метаданные ключ "text" = page_content (полный текст).
 # Поэтому обрезаем page_content перед загрузкой, чтобы metadata["text"] + остальные поля < 40 KB.
 PINECONE_METADATA_LIMIT_BYTES = 40960
-# Резерв на наши поля (source, code_ru, code_kz, article_number) и сериализацию: ~1 KB
-MAX_TEXT_IN_METADATA_BYTES = PINECONE_METADATA_LIMIT_BYTES - 1024
-# Макс. символов для "text" (кириллица до 4 байт/символ: 8000*4=32KB + наши поля < 40KB)
-MAX_PAGE_CONTENT_CHARS = 8000
+# Резерв на наши поля (source, code_ru, code_kz, article_number) и сериализацию (JSON + экранирование): ~5 KB
+MAX_TEXT_IN_METADATA_BYTES = 30000
+# Макс. символов для "text" (кириллица 2 байта/символ, JSON экранирование может увеличить размер)
+MAX_PAGE_CONTENT_CHARS = 4000
 
 # Whitelist + blacklist: только короткие поля, длинные — удалить или обрезать
 def clean_metadata(meta: dict) -> dict:
@@ -147,9 +149,9 @@ bad_chunks_found = []
 
 for idx, chunk in enumerate(chunks):
     clean_meta = clean_metadata(chunk.metadata)
-    # Проверяем размер метаданных в байтах (UTF-8) после сериализации
-    meta_str = str(clean_meta)
-    meta_size = len(meta_str.encode('utf-8'))
+    # Проверяем размер метаданных в байтах (UTF-8) после сериализации в JSON
+    meta_json = json.dumps(clean_meta, ensure_ascii=False)
+    meta_size = len(meta_json.encode('utf-8'))
     
     if meta_size > max_meta_size:
         max_meta_size = meta_size
@@ -158,18 +160,24 @@ for idx, chunk in enumerate(chunks):
     # Находим все чанки с метаданными > 38 KB (чуть ниже лимита для отладки)
     if meta_size > 38000:
         bad_chunks_found.append((idx, meta_size, clean_meta, chunk.page_content[:200]))
-        print(f"!!! Чанк {idx} — размер метаданных: {meta_size} байт")
+        print(f"!!! Чанк {idx} — размер метаданных (JSON): {meta_size} байт")
         print(f"   Метаданные: {clean_meta}")
         print(f"   Текст чанка (первые 200): {chunk.page_content[:200]}...\n")
     
     # Обрезаем page_content: библиотека положит его в metadata["text"], лимит 40 KB
     content = chunk.page_content
+    # Проверяем размер контента в UTF-8
     if len(content.encode('utf-8')) > MAX_TEXT_IN_METADATA_BYTES:
-        content = content[:MAX_PAGE_CONTENT_CHARS] + "\n[... текст обрезан из-за лимита Pinecone 40 KB ...]"
+        # Обрезаем по символам и проверяем байты снова
+        content = content[:MAX_PAGE_CONTENT_CHARS]
+        while len(content.encode('utf-8')) > MAX_TEXT_IN_METADATA_BYTES and len(content) > 0:
+            content = content[:-100]
+        content += "\n[... текст обрезан из-за лимита Pinecone 40 KB ...]"
+    
     clean_chunk = Document(page_content=content, metadata=clean_meta)
     clean_chunks.append(clean_chunk)
 
-print(f"Максимальный размер метаданных: {max_meta_size} байт (лимит: 40960)")
+print(f"Максимальный размер метаданных (без text): {max_meta_size} байт (лимит: 40960)")
 if bad_chunk_idx >= 0:
     print(f"Самый большой чанк №{bad_chunk_idx} — проверьте его метаданные!")
     if bad_chunk_idx < len(chunks):
@@ -193,20 +201,26 @@ max_total_est = 0
 bad_idx = -1
 
 for idx, chunk in enumerate(clean_chunks):
-    meta_bytes = len(str(chunk.metadata).encode('utf-8'))
-    text_bytes = len(chunk.page_content.encode('utf-8'))
-    total_est = meta_bytes + text_bytes + 20  # +20 на ключ "text" и сериализацию
-    max_meta_only = max(max_meta_only, meta_bytes)
+    # Симулируем что сделает langchain_pinecone
+    simulated_meta = chunk.metadata.copy()
+    simulated_meta["text"] = chunk.page_content
+    
+    meta_json = json.dumps(simulated_meta, ensure_ascii=False)
+    total_est = len(meta_json.encode('utf-8'))
+    
+    meta_only_size = len(json.dumps(chunk.metadata, ensure_ascii=False).encode('utf-8'))
+    max_meta_only = max(max_meta_only, meta_only_size)
+    
     if total_est > max_total_est:
         max_total_est = total_est
         bad_idx = idx
     if total_est > 38000:
-        print(f"!!! Чанк №{idx} — оценка итога: {total_est} байт (meta: {meta_bytes}, text: {text_bytes})")
+        print(f"!!! Чанк №{idx} — оценка итога (JSON): {total_est} байт (meta_only: {meta_only_size})")
         print(f"   Метаданные: {chunk.metadata}")
         print(f"   Первые 200 символов текста: {chunk.page_content[:200]}...\n")
 
 print(f"Метаданные (без text): макс. {max_meta_only} байт")
-print(f"Оценка макс. итога (meta + text): {max_total_est} байт (лимит: 40960)")
+print(f"Оценка макс. итога (JSON meta + text): {max_total_est} байт (лимит: 40960)")
 if bad_idx >= 0 and max_total_est > 40960:
     print(f"Проблемный чанк №{bad_idx} — page_content обрезан до {MAX_PAGE_CONTENT_CHARS} символов")
 
@@ -214,8 +228,20 @@ if max_total_est > 40960:
     print(f"\n⚠️  СТОП: оценка размера > 40 KB. Уменьшите MAX_PAGE_CONTENT_CHARS.")
     raise SystemExit("См. константы MAX_PAGE_CONTENT_CHARS / MAX_TEXT_IN_METADATA_BYTES выше.")
 
-print(f"Загрузка {len(clean_chunks)} чанков...")
-vector_store.add_documents(clean_chunks, batch_size=200)
+print(f"Загрузка {len(clean_chunks)} чанков (пакетами по 50)...")
+
+BATCH_SIZE = 50
+total_chunks = len(clean_chunks)
+
+for i in range(0, total_chunks, BATCH_SIZE):
+    batch = clean_chunks[i : i + BATCH_SIZE]
+    print(f"   Бач {i // BATCH_SIZE + 1}/{(total_chunks + BATCH_SIZE - 1) // BATCH_SIZE}: документы {i} - {i + len(batch)}")
+    try:
+        vector_store.add_documents(batch, batch_size=32)
+    except Exception as e:
+        print(f"❌ Ошибка в баче {i}: {e}")
+        # Можно добавить break или continue, в зависимости от желаемого поведения
+        # Пока просто логируем и идем дальше (или останавливаемся, если критично)
 
 # Сохраняем очищенные чанки для BM25
 with open(config.CHUNKS_PICKLE_PATH, "wb") as f:

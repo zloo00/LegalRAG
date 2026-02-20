@@ -1,24 +1,73 @@
-# Виртуальные окружения
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Virtual Environments ---
+venv/
 .venv/
+env/
+ENV/
+env.bak/
+venv.bak/
 rag-env-312/
 rag_env/
 
-# Pinecone — облако; локальные артефакты
+# --- IDEs & Editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+.DS_Store
+Thumbs.db
+
+# --- Logs & Databases ---
+*.log
+*.sqlite
+*.sqlite3
+chroma_db/
+instance/
+
+# --- Project Specific (RAG/Data) ---
+# Embeddings & Indices
 benchmark_results/
 chunks_for_bm25.pkl
 
-# Системные
-__pycache__/
-.DS_Store
-.env
+# Chat History (Conversation logs)
+chat_history.json
 
-# Vector DB
-chroma_db/
-*.sqlite3
-
-node_modules/
-.next/
-dist/
+# Local Environment Variables
 .env
 .env.local
-*.log
+.env.*.local
+
+# --- Frontend / Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.next/
+out/
+.vercel

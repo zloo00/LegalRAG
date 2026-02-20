@@ -8,7 +8,7 @@ from typing import Any, List
 import config
 from langchain_pinecone import PineconeVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_classic.chains import RetrievalQA
+
 from langchain_core.prompts import PromptTemplate
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
@@ -379,7 +379,7 @@ if _chunks is None and config.DOCUMENTS_DIR.exists():
 try:
     from langchain_community.retrievers import BM25Retriever
     try:
-        from langchain_classic.retrievers import EnsembleRetriever
+        from langchain.retrievers import EnsembleRetriever
     except ImportError:
         from langchain.retrievers.ensemble import EnsembleRetriever
 
@@ -421,7 +421,7 @@ if config.USE_RERANKER:
         try:
             from langchain_community.retrievers import ContextualCompressionRetriever
         except ImportError:
-            from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+            from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
         from langchain_community.document_compressors import FlashrankRerank
 
         print("Попытка инициализации FlashRank reranker...")
@@ -566,7 +566,7 @@ UNIVERSAL_PROMPT_TEMPLATE = """Ты — точный юридический ас
 Контекст (с источниками, номерами статей и кодексами):
 {context}
 
-Вопрос: {question}
+Вопрос: {input}
 
 Ответ (строго следуй правилам выше, цитируй дословно, указывай статью, часть, кодекс и источник):"""
 
@@ -592,7 +592,7 @@ CRIMINAL_PROMPT_TEMPLATE = """Ты — эксперт по Уголовному 
 {context}
 
 Вопрос (разбери по пунктам):
-{question}
+{input}
 
 Ответ (нумеруй пункты, цитируй дословно, указывай статью и источник):"""
 
@@ -611,7 +611,7 @@ RANGE_PROMPT_TEMPLATE = """Ты — точный ассистент по УК Р
 {context}
 
 Вопрос:
-{question}
+{input}
 
 Ответ (перечисли статьи из диапазона, если они есть, цитируй дословно):"""
 
@@ -629,14 +629,13 @@ def _select_prompt(question: str) -> PromptTemplate:
     return UNIVERSAL_PROMPT
 
 
-def _make_qa_chain(prompt: PromptTemplate) -> RetrievalQA:
-    return RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",
-        retriever=retriever,
-        return_source_documents=True,
-        chain_type_kwargs={"prompt": prompt},
-    )
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+
+def _make_qa_chain(prompt: PromptTemplate) -> Any:
+    # LCEL pipeline: Retriever -> Document Chain -> Retrieval Chain
+    question_answer_chain = create_stuff_documents_chain(llm, prompt)
+    return create_retrieval_chain(retriever, question_answer_chain)
 
 
 _QA_CHAINS = {
@@ -656,7 +655,18 @@ def invoke_qa(query: str) -> dict:
         chain = _QA_CHAINS["criminal"]
     else:
         chain = _QA_CHAINS["universal"]
-    return chain.invoke({"query": query})
+    
+    # LCEL expects "input" for the question, but our prompts use "question" and "context"
+    # create_retrieval_chain passes "input" to retriever, and "input" + "context" to the doc chain.
+    # We need to map "query" -> "input"
+    res = chain.invoke({"input": query})
+    
+    # Map LCEL output back to legacy format expected by app.py ("result", "source_documents")
+    # LCEL returns "answer" and "context" (list of docs)
+    return {
+        "result": res.get("answer", ""),
+        "source_documents": res.get("context", [])
+    }
 
 _KZ_CHARS = set("әғқңөұүһі")
 _KZ_COMMON_WORDS = (
