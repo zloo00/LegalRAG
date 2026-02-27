@@ -422,7 +422,10 @@ try:
     try:
         from langchain.retrievers import EnsembleRetriever
     except ImportError:
-        from langchain.retrievers.ensemble import EnsembleRetriever
+        try:
+            from langchain.retrievers.ensemble import EnsembleRetriever
+        except ImportError:
+            from langchain_classic.retrievers import EnsembleRetriever
 
     if not _chunks:
         raise ValueError("Нет чанков. Запустите: python build_vector_db.py")
@@ -468,8 +471,12 @@ retriever = law_aware_retriever
 if config.USE_RERANKER:
     try:
         from FlagEmbedding import FlagReranker
-        from langchain.retrievers import ContextualCompressionRetriever
-        from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
+        try:
+            from langchain.retrievers import ContextualCompressionRetriever
+            from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
+        except ImportError:
+            from langchain_classic.retrievers import ContextualCompressionRetriever
+            from langchain_classic.retrievers.document_compressors.base import BaseDocumentCompressor
         
         print("Инициализация BAAI/bge-reranker-v2-m3 (это может занять время)...")
         # Global initialization to avoid reloading per request
@@ -684,8 +691,12 @@ def _select_prompt(question: str) -> PromptTemplate:
     return UNIVERSAL_PROMPT
 
 
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+try:
+    from langchain.chains import create_retrieval_chain
+    from langchain.chains.combine_documents import create_stuff_documents_chain
+except ImportError:
+    from langchain_classic.chains import create_retrieval_chain
+    from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
 from langchain_core.runnables import RunnablePassthrough
 
