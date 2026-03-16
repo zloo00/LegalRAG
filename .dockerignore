@@ -17,3 +17,49 @@ _agents
 **/node_modules
 **/build
 **/dist
+**/.next
+**/out
+**/vendor
+
+# Go build artifacts
+bin/
+*.exe
+*.out
+*.test
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# IDE/editor configs
+.vscode/
+.idea/
+*.iml
+
+# Dependency directories
+vendor/
+
+# System temp folders
+temp/
+tmp/
+
+# Env and secrets
+.env
+.env.local
+.env.*
+
+# Uploaded/generated files
+*.pdf
+*.docx
+*.zip
+
+# OS specific
+__MACOSX/
+
+# Cache
+.cache/
+hf_cache/
+.models_cache/

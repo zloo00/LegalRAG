@@ -38,13 +38,21 @@ type HistoryMessage struct {
 }
 
 type ChatRequest struct {
+<<<<<<< HEAD
 	Message string           `json:"message" binding:"required"`
 	ChatID  string           `json:"chat_id" binding:"required"`
+=======
+	Message string `json:"message" binding:"required"`
+	ChatID  string `json:"chat_id" binding:"required"`
+	// History is ignored server-side; real history is loaded from MongoDB per user/chat session.
+	// Kept for API backward compatibility only.
+>>>>>>> 7ca0a54 (initial changes)
 	History []HistoryMessage `json:"history"`
 }
 
 type PythonChatRequest struct {
 	Query   string           `json:"query"`
+	ChatID  string           `json:"chat_id"`
 	History []HistoryMessage `json:"history"`
 }
 
@@ -97,15 +105,24 @@ func HandleChat(c *gin.Context) {
 	// Get userId from context
 	userID := c.MustGet("userId").(string)
 
+<<<<<<< HEAD
 	// Save User Message to MongoDB
+=======
+	// Save User Message to MongoDB (scoped by chat session)
+>>>>>>> 7ca0a54 (initial changes)
 	if err := services.SaveChatMessage(userID, req.ChatID, "user", req.Message, nil); err != nil {
 		utils.LogError(fmt.Sprintf("Failed to save user message: %v", err))
 		// Continue processing even if save fails
 	}
 
 	// ── SERVER-SIDE HISTORY LOADING ──────────────────────────────────────────
+<<<<<<< HEAD
 	// Load the last MAX_HISTORY_MESSAGES for THIS user and THIS chat from MongoDB.
 	// This guarantees per-session isolation.
+=======
+	// Load the last MAX_HISTORY_MESSAGES for THIS user from MongoDB.
+	// This guarantees per-user isolation regardless of what the client sends.
+>>>>>>> 7ca0a54 (initial changes)
 	dbMessages, histErr := services.GetRecentChatHistory(userID, req.ChatID, MAX_HISTORY_MESSAGES)
 	serverHistory := make([]HistoryMessage, 0, len(dbMessages))
 	if histErr != nil {
@@ -129,6 +146,7 @@ func HandleChat(c *gin.Context) {
 	// Prepare request to Python API using server-loaded history
 	pythonPayload := PythonChatRequest{
 		Query:   req.Message,
+		ChatID:  req.ChatID,
 		History: serverHistory, // ← always from MongoDB, never from client
 	}
 	jsonData, err := json.Marshal(pythonPayload)
@@ -254,6 +272,15 @@ func GetChatHistory(c *gin.Context) {
 		return
 	}
 
+<<<<<<< HEAD
+=======
+	chatID := c.Query("chat_id")
+	if chatID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chat_id is required"})
+		return
+	}
+
+>>>>>>> 7ca0a54 (initial changes)
 	history, err := services.GetChatHistory(userID.(string), chatID)
 	if err != nil {
 		utils.LogError(fmt.Sprintf("Ошибка получения истории чата: %v", err))
@@ -276,6 +303,15 @@ func ClearChatHistory(c *gin.Context) {
 		return
 	}
 
+<<<<<<< HEAD
+=======
+	chatID := c.Query("chat_id")
+	if chatID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chat_id is required"})
+		return
+	}
+
+>>>>>>> 7ca0a54 (initial changes)
 	if err := services.ClearChatHistory(userID.(string), chatID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear chat history"})
 		return
@@ -296,6 +332,15 @@ func ExportChatHistory(c *gin.Context) {
 		return
 	}
 
+<<<<<<< HEAD
+=======
+	chatID := c.Query("chat_id")
+	if chatID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chat_id is required"})
+		return
+	}
+
+>>>>>>> 7ca0a54 (initial changes)
 	data, err := services.ExportChatHistory(userID.(string), chatID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to export chat history"})

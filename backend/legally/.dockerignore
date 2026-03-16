@@ -1,10 +1,15 @@
-# Backend Go Docker Ignore
+# Go Docker Ignore
+.git
+.idea
+.vscode
 .env
-tmp/
+.env.*
 *.log
-.vscode/
-.idea/
 bin/
-main
 legally
 vendor/
+tmp/
+temp/
+*.test
+*.out
+*.exe

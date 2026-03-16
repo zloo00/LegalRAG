@@ -43,6 +43,7 @@ func SaveChatMessage(userID, chatID, role, content string, sources []models.Sour
 	return repositories.SaveChatMessage(msg)
 }
 
+<<<<<<< HEAD
 func GetChatHistory(userID string, chatID string) ([]models.ChatMessage, error) {
 	return repositories.GetChatHistory(userID, chatID)
 }
@@ -57,6 +58,23 @@ func ClearChatHistory(userID string, chatID string) error {
 }
 
 func ExportChatHistory(userID string, chatID string) ([]byte, error) {
+=======
+func GetChatHistory(userID, chatID string) ([]models.ChatMessage, error) {
+	return repositories.GetChatHistory(userID, chatID)
+}
+
+// GetRecentChatHistory returns the last `limit` messages for the given user/chat.
+// Used by HandleChat to build server-side history for the Python AI request.
+func GetRecentChatHistory(userID, chatID string, limit int) ([]models.ChatMessage, error) {
+	return repositories.GetRecentChatHistory(userID, chatID, limit)
+}
+
+func ClearChatHistory(userID, chatID string) error {
+	return repositories.ClearChatHistory(userID, chatID)
+}
+
+func ExportChatHistory(userID, chatID string) ([]byte, error) {
+>>>>>>> 7ca0a54 (initial changes)
 	history, err := repositories.GetChatHistory(userID, chatID)
 	if err != nil {
 		return nil, err

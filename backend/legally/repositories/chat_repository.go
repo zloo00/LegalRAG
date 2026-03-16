@@ -23,6 +23,7 @@ func SaveChatMessage(msg models.ChatMessage) error {
 	return nil
 }
 
+<<<<<<< HEAD
 func GetChatHistory(userID string, chatID string) ([]models.ChatMessage, error) {
 	return GetRecentChatHistory(userID, chatID, 0) // 0 = no limit (legacy behaviour)
 }
@@ -30,6 +31,15 @@ func GetChatHistory(userID string, chatID string) ([]models.ChatMessage, error) 
 // GetRecentChatHistory returns the last `limit` messages for a user in a specific chat session.
 // If limit <= 0, returns all messages (preserved for export/clear use cases).
 func GetRecentChatHistory(userID string, chatID string, limit int) ([]models.ChatMessage, error) {
+=======
+func GetChatHistory(userID, chatID string) ([]models.ChatMessage, error) {
+	return GetRecentChatHistory(userID, chatID, 0) // 0 = no limit (legacy behaviour)
+}
+
+// GetRecentChatHistory returns the last `limit` messages for a user/chat.
+// If limit <= 0, returns all messages (preserved for export/clear use cases).
+func GetRecentChatHistory(userID, chatID string, limit int) ([]models.ChatMessage, error) {
+>>>>>>> 7ca0a54 (initial changes)
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return nil, fmt.Errorf("неверный ID пользователя")
@@ -48,6 +58,7 @@ func GetRecentChatHistory(userID string, chatID string, limit int) ([]models.Cha
 			SetLimit(int64(limit))
 	}
 
+<<<<<<< HEAD
 	// Build a filter that checks for user_id as either an ObjectID (new way) or string (old way)
 	// AND filters by chat_id to ensure session isolation.
 	filter := bson.M{
@@ -60,6 +71,17 @@ func GetRecentChatHistory(userID string, chatID string, limit int) ([]models.Cha
 			},
 			{"chat_id": chatID},
 		},
+=======
+	// Build a filter that checks for user_id and chat_id.
+	// We keep backward compatibility for old messages stored without chat_id.
+	userFilter := bson.M{"$or": []bson.M{{"user_id": objID}, {"user_id": userID}}}
+
+	filter := bson.M{
+		"$and": []bson.M{userFilter, bson.M{"chat_id": chatID}},
+	}
+	if chatID == "" {
+		filter = userFilter
+>>>>>>> 7ca0a54 (initial changes)
 	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
@@ -83,7 +105,11 @@ func GetRecentChatHistory(userID string, chatID string, limit int) ([]models.Cha
 	return messages, nil
 }
 
+<<<<<<< HEAD
 func ClearChatHistory(userID string, chatID string) error {
+=======
+func ClearChatHistory(userID, chatID string) error {
+>>>>>>> 7ca0a54 (initial changes)
 	objID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
 		return fmt.Errorf("неверный ID пользователя")
@@ -95,6 +121,7 @@ func ClearChatHistory(userID string, chatID string) error {
 
 	// Delete messages for user in specific chat session
 	filter := bson.M{
+<<<<<<< HEAD
 		"$and": []bson.M{
 			{
 				"$or": []bson.M{
@@ -104,6 +131,12 @@ func ClearChatHistory(userID string, chatID string) error {
 			},
 			{"chat_id": chatID},
 		},
+=======
+		"$or": []bson.M{{"user_id": objID}, {"user_id": userID}},
+	}
+	if chatID != "" {
+		filter = bson.M{"$and": []bson.M{filter, bson.M{"chat_id": chatID}}}
+>>>>>>> 7ca0a54 (initial changes)
 	}
 	_, err = coll.DeleteMany(ctx, filter)
 	return err

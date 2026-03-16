@@ -1,47 +1,24 @@
 # Go build artifacts
 bin/
+legally
 *.exe
 *.out
 *.test
 
-# Temporary files
-*.log
-*.tmp
-*.swp
-.DS_Store
-Thumbs.db
-
-# IDE/editor configs
-.vscode/
-.idea/
-*.iml
-
-# Dependency directories (if you ever use vendoring)
+# Dependencies
 vendor/
 
-# System temp folders
-temp/
-tmp/
-
-# Node/npm (если добавите js-сборку)
-node_modules/
-
-# Env and secrets
-.env
-.env.local
-.env.*
-
-# Frontend build artifacts (если будет сборка)
-dist/
-build/
-
-# Uploaded/generated files
-*.pdf
-*.docx
-*.zip
+# IDEs
+.idea/
+.vscode/
+*.iml
 
 # OS specific
-__MACOSX/
+.DS_Store
 
-# Cache
-.cache/
+# Env and logs
+.env
+.env.*
+*.log
+tmp/
+temp/

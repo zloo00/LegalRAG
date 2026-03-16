@@ -1,3 +1,4 @@
+# AI Service Docker Ignore
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,7 +7,18 @@ __pycache__/
 htmlcov/
 dist/
 build/
-.env
 venv/
 env/
 .venv/
+.env
+.env.*
+.git
+.idea
+.vscode
+*.log
+.cache/
+hf_cache/
+.models_cache/
+documents/
+chroma_db/
+benchmark_results/
