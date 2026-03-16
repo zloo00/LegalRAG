@@ -20,7 +20,7 @@ from ai_service.core import config
 
 # Папка для результатов
 config.BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
-TEST_QUERIES_PATH = Path(os.environ.get("LEGAL_RAG_TEST_QUERIES_PATH", "test_queries.json"))
+TEST_QUERIES_PATH = Path(os.environ.get("LEGAL_RAG_TEST_QUERIES_PATH", "tests/benchmarks/test_queries.json"))
 DEFAULT_FALLBACK = "Информация не найдена в доступных текстах законов."
 
 # Вопросы для бенчмарка (id, вопрос, язык)

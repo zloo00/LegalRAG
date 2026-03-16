@@ -76,11 +76,11 @@ hf_cache/
 .models_cache/
 
 # AI generated data
-chat_history.json
-file_map.json
-migration_map.json
-llm_service_report.md
-test_queries.json
+data/local/chat_history.json
+docs/maps/file_map.json
+docs/maps/migration_map.json
+infrastructure/reports/llm_service_report.md
+tests/benchmarks/test_queries.json
 
 # Environment Variables — NEVER commit
 .env

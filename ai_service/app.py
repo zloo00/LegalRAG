@@ -9,7 +9,7 @@ import streamlit as st
 from ai_service.core import config
 from ai_service.retrieval.rag_chain import invoke_qa, validate_answer
 
-CHAT_STORE_PATH = "chat_history.json"
+CHAT_STORE_PATH = "data/local/chat_history.json"
 
 
 def _now_iso() -> str:
